@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.7
-# Date: Sat Feb 18 14:46:16 2017
+# Date: Sat Dec 04 06:22:36 2021
 #
 ##############################################################
 #
@@ -46,7 +46,7 @@ CSET axi_id_width=4
 CSET axi_slave_type=Memory_Slave
 CSET axi_type=AXI4_Full
 CSET byte_size=8
-CSET coe_file=C:\FPGA\PCXT\ZXUnCore\next186lite_test2\HW\Cache_2k_bootload_2MB.coe
+CSET coe_file=C:\FPGA\PCXT\next186lite_graphics_gremlin-main\HW\Cache_2k_bootload_2MB.coe
 CSET collision_warnings=ALL
 CSET component_name=cache_2MB
 CSET disable_collision_warnings=false
@@ -105,4 +105,4 @@ CSET write_width_b=32
 MISC pkg_timestamp=2012-11-19T16:22:25Z
 # END Extra information
 GENERATE
-# CRC: 921420f6
+# CRC: de9e3be7

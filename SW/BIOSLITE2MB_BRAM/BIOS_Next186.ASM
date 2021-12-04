@@ -181,7 +181,7 @@ SCANCODE1   equ 1
 ;       f000h                   15000h
 
 
-RAMSize   equ    20h        ; 64KB segments
+RAMSize   equ    10h        ; 64KB segments
 
         org 0e000h        
 bios:        
@@ -217,30 +217,35 @@ warmboot:
 
 ; ------------------ MAP init
         call    flush
-;        mov     ax, 15h     ; BIOS physical segment 15h mapped on virtual segment 0ch
-;        out     8ch, ax
-;        push    0c000h
-;        pop     es
-;        push    0f000h
-;        pop     ds
-;        xor     si, si
-;        xor     di, di
-;        mov     cx, 8000h
-;        rep     movsw       ; copy BIOS virtual segment 0fh over physical segment 15h
+        mov     ax, 07h     ; BIOS physical segment 07h mapped on virtual segment 05h
+        out     85h, ax
+        push    05000h
+        pop     es
+        push    0f000h
+        pop     ds
+        xor     si, si
+        xor     di, di
+        mov     cx, 8000h
+        rep     movsw       ; copy BIOS virtual segment 0fh over physical segment 07h
 
-;        call    flush
+        call    flush
         mov     dx, 80h      
         xor     ax, ax
 mapi:        
         out     dx, ax
         inc     ax
         inc     dx
-        cmp     al, 0ch
-        jne     short mapi1
-        add     al, 6
+;        cmp     al, 07 ;0ch
+;        jne     short mapi1
+;        mov     ax, 12h ;6
+;        out     dx, ax
+;        inc     dx
+;        mov     ax, 08
 mapi1:        
-        cmp     al, 16h
+        cmp     al, 0fh ;16h
         jne     short mapi
+        mov     ax, 07
+        out     dx, ax
         
 ; -------------------- Interrupt table init
         push    0
@@ -434,7 +439,7 @@ bioscont    db 13, 10, 'ZX-UNO port by DistWave', 13, 10
             db 'Graphics Gremlin Integration by @spark2k06', 13, 10	
             db 'CPU: 80186 4.77Mhz', 13, 10
             db 'Graphics: CGA/Tandy', 13, 10
-            db 'RAM: 2MB SRAM 8-bit', 13, 10            
+            db 'RAM: 2MB SRAM 8-bit (1MB available)', 13, 10            
             db 'Cache: 8x256 bytes data/inst', 13, 10
             db 'HD0: ', 0
 
@@ -2883,7 +2888,7 @@ HandlerPtr      equ     <ds:[0a1h]> ; 4 bytes
 DataBuffer      equ     <ds:[0a5h]> ; 3 bytes
 DataCounter     equ     <ds:[067h]> ; 1 byte
 PacketSize      equ     <ds:[068h]> ; 1 byte, 0->3bytes, 1->4bytes
-FreeXMSKb       equ     RAMSize*64 - 640 - 512 - 32	;total - DOS - VGA - BIOS
+FreeXMSKb       equ     0
 
 ; ------------ MovExt
 IncSeg: ; DX = segment port address

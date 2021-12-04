@@ -332,7 +332,7 @@ module system_2MB
 	);
 	
 	wire MREQ;
-   wire CACHE_EN = (ADDR[20:15] != 6'b010100);
+   wire CACHE_EN = (ADDR[20:15] != 6'b010100);	
 	wire CACHE_MREQ = MREQ & CACHE_EN;
 
 	wire TXTVRAM = (ADDR[19:16] == 4'b1011);
