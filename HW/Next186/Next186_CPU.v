@@ -151,11 +151,13 @@ module Next186_CPU(
 	reg [5:0]ICODE1 = 23;
 	reg NULLSEG;
 	reg DIVOP;
+	reg FFLUSH_REQ = 0;
+	reg FFLUSH = 0;
 
 // signals
 	assign IORQ = &EAC;
 	assign LOCK = CPUStatus[5];
-	assign FLUSH = ~IPWSEL || (ISIZE == 3'b000);
+	assign FLUSH = FFLUSH || ~IPWSEL || (ISIZE == 3'b000);
 	wire [15:0]IPADD = ISIZE == 3'b000 ? CRTIP : IP + ISIZE;
 	wire [15:0]IPIN = IPWSEL ? IPADD : ALUOUT;
 	wire [1:0]MOD = FETCH[1][7:6];
@@ -271,6 +273,7 @@ module Next186_CPU(
 
 	 always @(posedge CLK)
 		if(CE) begin
+			FFLUSH <= FFLUSH_REQ;
 			if(SRST) begin		// reset
 //				FETCH[0] <= 8'h0f;
 				FETCH[0][0] <= 1'b1; // for word=1
@@ -380,6 +383,8 @@ module Next186_CPU(
 		NULLSEG = 1'b0;
 		DIVOP = 1'b0;
 		
+		FFLUSH_REQ = 0;
+				
 		case(ICODE1) // one hot synthesis
 // --------------------------------  mov R/M to/from R/SR  --------------------------------
 			0: begin				
@@ -432,6 +437,7 @@ module Next186_CPU(
 				WE[1:0] = WRBIT;		// IP, RASEL_HI/RASEL_LO
 				ISIZE = 3;
 				NOBP = 1'b1;
+				FFLUSH_REQ = 1;
 			end
 // --------------------------------  segment override prefix --------------------------------
 			4: begin	
