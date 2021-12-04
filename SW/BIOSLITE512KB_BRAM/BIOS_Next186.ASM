@@ -1978,8 +1978,7 @@ int_10_fn0A:
 	or	al,al			; Is it user character set?
 	js	.CG9_02			;  ...skip if so
 	mov	dx,cs			; Else use ROM character set
-	mov	si,gfx_font		; load graphics font offset
-    mov	si,0
+	mov	si,gfx_font		; load graphics font offset    
 	jmp	.CG9_03
 
 .CG9_02:
@@ -2146,8 +2145,7 @@ CGR_07:
 
 CGR_08:
 	mov	dx,cs			; Load segment of graphics font 
-	mov	di,gfx_font		;  ...and offset
-    mov	di,0
+	mov	di,gfx_font		;  ...and offset    
 	mov	es,dx			;  ...save offset in es
 	mov	dx,ss
 	mov	ds,dx
@@ -2356,8 +2354,8 @@ int_10_fn0E:
 	jmp	set_cur_pos		; set new cursor position
 
 .bel:
-	;mov	bl,2			; 0.2 second beep
-	;call	beep
+	mov	bl,2			; 0.2 second beep
+	call	beep
 	ret
 
 .scroll:
@@ -2396,6 +2394,61 @@ int_10_fn0F:
 	mov	byte ptr [bp]+int_10_al,al
 	mov	al,ds:byte ptr [video_page]
 	mov	byte ptr [bp]+int_10_bh,al
+	ret
+
+pit_ch2_reg	    equ	42h
+pit_ctl_reg	    equ	43h
+ppi_pb_reg	    equ	61h	; 8255 PPI port B I/O register
+
+;=========================================================================
+; delay_15us - delay for multiplies of approximately 15 microseconds
+; Input:
+;	CX = time to delay (in 15 microsecond units)
+; Notes:
+;	This implementation does not provide precise timing
+;	The actual delay depends on the CPU clock frequency
+;-------------------------------------------------------------------------
+delay_15us:
+	push	ax
+	push	cx
+.delay1:
+	; mov	al,4	; With real PCXT at 4.77Mhz
+	mov	al,24	; With Next186 at 4.77Mhz
+.delay2:
+	dec	al
+	jnz	.delay2
+	loop	.delay1
+	pop	cx
+	pop	ax
+	ret
+
+;=========================================================================
+; beep - Play a beep sound
+; Input:
+;	BL - duration in 0.1 second
+; Output:
+;	BL = 0
+;-------------------------------------------------------------------------
+
+beep:
+	push	ax
+	mov	al,0B6h			; set PIC channel 2 to mode 3
+	out	pit_ctl_reg,al
+	mov	ax,1193			; approximately 1000 Hz
+	out	pit_ch2_reg,al		; load divisor's low byte to PIC
+	mov	al,ah
+	out	pit_ch2_reg,al		; load divisor's high byte to PIC
+	in	al,ppi_pb_reg		; read current value of PORT B
+	or	al,03h			; turn on the speaker
+	out	ppi_pb_reg,al		; write the new value
+.loop:
+	mov	cx,6666			; 0.1 second delay
+	call	delay_15us
+	dec	bl
+	jnz	.loop
+	xor	al,03h			; turn off the speaker
+	out	ppi_pb_reg,al		; write the new value
+	pop	ax
 	ret
 
 ;=========================================================================

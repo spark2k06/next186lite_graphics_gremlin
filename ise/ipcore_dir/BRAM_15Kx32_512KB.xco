@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.7
-# Date: Sat Nov 27 08:36:45 2021
+# Date: Tue Nov 30 05:09:03 2021
 #
 ##############################################################
 #
@@ -46,7 +46,7 @@ CSET axi_id_width=4
 CSET axi_slave_type=Memory_Slave
 CSET axi_type=AXI4_Full
 CSET byte_size=8
-CSET coe_file=C:\FPGA\PCXT\ZXUnCore\next186lite_test2\HW\BIOS_512KB_CGA.coe
+CSET coe_file=C:\FPGA\PCXT\next186lite_graphics_gremlin-main\HW\BIOS_512KB_CGA.coe
 CSET collision_warnings=ALL
 CSET component_name=BRAM_15Kx32_512KB
 CSET disable_collision_warnings=false
@@ -105,4 +105,4 @@ CSET write_width_b=8
 MISC pkg_timestamp=2012-11-19T16:22:25Z
 # END Extra information
 GENERATE
-# CRC: 604a1928
+# CRC: c98a182a
