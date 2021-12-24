@@ -126,7 +126,10 @@
 
 module system_2MB
 	(
-		 input CLK_50MHZ,
+		 input clk_vga,
+		 input clk_25,
+		 input clk_9_524,
+		 input clk_4_762,
 		 output [20:0]SRAM_ADDR,
 		 inout [7:0]SRAM_DATA,
 		 output SRAM_WE_n,
@@ -169,30 +172,22 @@ module system_2MB
 	wire VRAM8_ENABLE;
 	wire [18:0] VRAM8_ADDR;	
 	wire [7:0] VRAM8_DOUT;
-	
-	
-	reg hblnk = 0; 			// TODO: Remove this dependency (Original VGA driver)
-	reg vblnk = 0;				// TODO: Remove this dependency (Original VGA driver)
-	reg [9:0]hcount = 0;		// TODO: Remove this dependency (Original VGA driver)
-	reg [9:0]vcount = 0;		// TODO: Remove this dependency (Original VGA driver)
-	
-	
-	wire clk_vga;
-	wire clk_25;
-	wire clk_9_524;
-	wire clk_4_762;	
+
 	wire CPU_CE;	// CPU clock enable
 	wire CE;
 	wire CE_186;
 	wire ddr_rd; 
 	wire ddr_wr;
+		
 	wire TIMER_OE = PORT_ADDR[15:2] == 14'b00000000010000;	//   40h..43h	
 	wire LED_PORT = PORT_ADDR[15:0] == 16'h03bc;
 	wire SPEAKER_PORT = PORT_ADDR[15:0] == 16'h0061;
+	wire MEMORY_SIZE = PORT_ADDR[15:0] == 16'h0098;	
 	wire MEMORY_MAP = PORT_ADDR[15:4] == 12'h008;	
 	wire RS232_OE = PORT_ADDR[15:0] == 16'h0001;
-	wire INPUT_STATUS_OE = PORT_ADDR[15:0] == 16'h03da;		// TODO: Remove this dependency (Original VGA driver)
-	wire RTC_SELECT = PORT_ADDR[15:0] == 16'h0070;
+	wire SD_OE = PORT_ADDR[15:0] == 16'h0300;
+	wire EMS_OE = PORT_ADDR[15:2] == 14'b00000010011000; // 260h..263h
+	wire RTC_SELECT = PORT_ADDR[15:0] == 16'h0070;	
 	wire PIC_OE = PORT_ADDR[15:8] == 8'h00 && PORT_ADDR[6:0] == 7'b0100001;	// 21h, a1h
 	wire KB_OE = PORT_ADDR[15:4] == 12'h006 && {PORT_ADDR[3], PORT_ADDR[1:0]} == 3'b000; // 60h, 64h
 	wire JOYSTICK = PORT_ADDR[15:4] == 12'h020; // 0x200-0x20f	
@@ -202,7 +197,7 @@ module system_2MB
 	wire [7:0]PIC_DOUT;
 	
 	wire CRTC_OE;
-	wire [7:0] CRTC_DOUT;
+	wire [7:0] CRTC_DOUT;	
 	
 	wire HALT;
 
@@ -220,8 +215,9 @@ module system_2MB
 	wire RTCEND = RTC == RTCSET;
 	wire RTCDIVEND = RTCDIV25 == 24;
 	reg [12:0]cache_hi_addr;
-	wire [4:0]memmap;
-	wire [4:0]memmap_mux;	
+	wire [7:0]memmap;
+	wire [6:0]memmap_mux;	
+	wire f_map_to_f;
 	wire oncursor;
 	wire [11:0]cursorpos;
 	wire [15:0]scraddr;
@@ -232,21 +228,26 @@ module system_2MB
 	reg [2:0]auto_flush = 3'b000;
 
 	assign LED = ~SD_n_CS;
-	
+	//reg test_led = 0;
+	//assign LED = test_led;	
+		
 // SD interface
 	reg [7:0]SDI;
 	assign SD_DI = CPU_DOUT[7];
 
 	assign PORT_IN[15:8] = 
-		({8{INPUT_STATUS_OE}} & SDI);
+		({8{SD_OE}} & SDI);
 
 	assign PORT_IN[7:0] = 							 							 
-							 ({8{KB_OE}} & KB_DOUT) |							 
-							 ({8{INPUT_STATUS_OE}} & {2'b1x, 1'b0, 1'b0, vblnk, 1'b0, 1'b0, hblnk | vblnk}) | //TODO: Remove this dependency from the original VGA driver
+							 ({8{KB_OE}} & KB_DOUT) |
+							 ({8{SD_OE}} & {8'b1x000000}) |
 							 ({8{CRTC_OE}} & CRTC_DOUT) |
-							 ({8{MEMORY_MAP}} & {3'b000, memmap[4:0]}) |
+							 ({8{MEMORY_SIZE}} & 8'd2) | // 1: 512KB, 2: 2MB
+							 ({8{MEMORY_MAP}} & memmap) |
+							 ({8{EMS_OE}} & memmap) |							 
 							 ({8{TIMER_OE}} & TIMER_DOUT) |
 							 ({8{PIC_OE}} & PIC_DOUT) |
+							 ({8{LED_PORT}} & {7'b0000000,LED}) |
 							 ({8{JOYSTICK}});
 
     // Sets up the card to generate a video signal
@@ -270,7 +271,7 @@ module system_2MB
     //assign composite_on = switch3; (TODO: Test in next version, from the original Graphics Gremlin sources)
 	 
     // Thin font switch (TODO: switchable with Keyboard shortcut)    
-	 assign thin_font = 1'b0; // Default: No thin font
+	 assign thin_font = 1'b0; // Default: No thin font	 
     	 
     // CGA digital to analog converter
     cga_vgaport vga (
@@ -283,15 +284,15 @@ module system_2MB
 
     cga cga1 (
         .clk(clk_vga),        
-		  .bus_a(PORT_ADDR),
-        .bus_ior_l(1'd0),
-        .bus_iow_l(1'd0),
+	.bus_a(PORT_ADDR),        
+	.bus_ior_l(~(IORQ & CPU_CE)),		  
+        .bus_iow_l(~WR),
         .bus_memr_l(1'd0),
         .bus_memw_l(1'd0),
         .bus_d(CPU_DOUT[7:0]),
         .bus_out(CRTC_DOUT),
         .bus_dir(CRTC_OE),
-        .bus_aen(~(IORQ & CPU_CE & WR)),        
+        .bus_aen(~(IORQ & CPU_CE)),        
         .ram_we_l(VRAM8_ENABLE),
         .ram_a(VRAM8_ADDR),
         .ram_d(VRAM8_DOUT),        
@@ -304,16 +305,6 @@ module system_2MB
     );
 
 	defparam cga1.BLINK_MAX = 24'd4772727;
-
-	dcm dcm_system 
-	(
-		.CLK_IN1(CLK_50MHZ), 
-		.CLK_OUT1(clk_vga), 		// 28.571 Mhz (GRAPHICS GREMLIN, VGAPORT, VRAM)
-		.CLK_OUT2(clk_25), 		// 25.000 Mhz (RTC, TIMER 8253)
-		.CLK_OUT3(clk_9_524), 	// 9.524 Mhz  (SYSCLK x 2 [CPU])
-		.CLK_OUT4(clk_4_762) 	// 4.762 Mhz  (SYSCLK, CACHE DDRCLK)
-		
-    );
 
 	SRAM_8bit SRAM
 	(
@@ -331,65 +322,58 @@ module system_2MB
 		.sram_DATA(SRAM_DATA)						// SRAM data
 	);
 	
+	parameter crtc_addr = 6'b010111; // B8000 (32 KB)	
+	parameter bios_addr_fe000 = 8'b01111111; // FE000 (2 KB)
+		
 	wire MREQ;
-   wire CACHE_EN = (ADDR[20:15] != 6'b010100);	
+   wire CRTCVRAM = (ADDR[20:15] == crtc_addr);	
+	wire BIOSROM = ((ADDR[20:13] == bios_addr_fe000) & f_map_to_f);	
+	
+	wire CACHE_EN = ~(CRTCVRAM | BIOSROM);
 	wire CACHE_MREQ = MREQ & CACHE_EN;
-
-	wire TXTVRAM = (ADDR[19:16] == 4'b1011);
-	wire GFXVRAM = (ADDR[19:16] == 4'b1010);
-	wire vram_en = (TXTVRAM | GFXVRAM) & MREQ;
 	
 	wire [31:0] vram_dout;
-	wire [31:0] CPU_DIN;
+	wire [31:0] bios_dout;
+	wire [31:0] CPU_DIN;	
 	reg s_cache_mreq;
-	assign CPU_DIN	= s_cache_mreq ? DRAM_dout : vram_dout;
-
-
-	BRAM_15Kx32_2MB VRAM
+		
+	assign CPU_DIN	= s_cache_mreq ? DRAM_dout : CRTCVRAM ? vram_dout : bios_dout;
+	
+	BRAM_8KB_BIOS BIOS
 	(
 	  .clka(clk_9_524), // input clka
-	  .ena(vram_en), // input ena
+	  .ena(BIOSROM), // input ena	  
+	  .addra(ADDR[12:2]), // input [10 : 0] addra	  
+	  .douta(bios_dout) // output [31 : 0] douta
+
+	);
+			
+	BRAM_32KB_CRTC VRAM
+	(
+	  .clka(clk_9_524), // input clka
+	  .ena(CRTCVRAM), // input ena
 	  .wea(RAM_WMASK),
-	  .addra(ADDR[15:2]), // input [13 : 0] addra
+	  .addra(ADDR[14:2]), // input [12 : 0] addra
 	  .dina(DOUT),
 	  .douta(vram_dout), // output [31 : 0] douta
 	  .clkb(clk_vga), // input clka
 	  .web(1'b0),
 	  .enb(VRAM8_ENABLE),
-	  .addrb(VRAM8_ADDR[15:0]), // input [15 : 0] addrb
+	  .addrb(VRAM8_ADDR[14:0]), // input [14 : 0] addrb
 	  .dinb(8'h0),
 	  .doutb(VRAM8_DOUT) // output [7 : 0] doutb  
 
 	);
 	
+
   
   always @(posedge clk_25) begin
   	  	if(RTCDIVEND) RTCDIV25 <= 0;	// real time clock
 		else RTCDIV25 <= RTCDIV25 + 1;  
-  
-		// Temporal H/V position counter. TODO: Remove this dependency (Original VGA driver)
-		if(hcount >= 10'd799) begin
-			hcount <= 0;
-			hblnk <= 0;
-		end else begin
-			hcount <= hcount + 1;
-			hblnk <= (hcount >= 10'd639);
-		end
-		
-		if(hcount == 10'd799) begin			
-			  if (vcount >= 10'd520) begin
-				vcount <= 0;
-				vblnk <= 0;
-			end else begin
-				vcount <= vcount + 1;				
-				vblnk <= (vcount >= 10'd479);
-			end			
-		end
-		
 	end		
 	
 	
-	cache_controller_2MB cache_ctl 
+	cache_controller cache_ctl 
 	(
 		 .addr(ADDR), 
 		 .dout(DRAM_dout), 
@@ -468,18 +452,7 @@ module system_2MB
 		 .MREQ(MREQ),
 		 .IORQ(IORQ),
 		 .WR(WR),
-		 .WORD(WORD),
-		 
-		 .PLANAR(planarreq),
-		 .VGA_WPLANE(vga_wplane),
-		 .VGA_RPLANE(vga_rplane),
-		 .VGA_BITMASK(vga_bitmask),
-		 .VGA_RWMODE(vga_rwmode),
-		 .VGA_SETRES(vga_setres),
-		 .VGA_ENABLE_SETRES(vga_enable_setres),
-		 .VGA_LOGOP(vga_logop),
-		 .VGA_COLOR_COMPARE(vga_color_compare),
-		 .VGA_COLOR_DONT_CARE(vga_color_dont_care)
+		 .WORD(WORD)
 	);
 	
 	seg_map_2MB seg_mapper 
@@ -487,11 +460,14 @@ module system_2MB
 		 .CLK(clk_9_524), 
 		 .cpuaddr(PORT_ADDR[3:0]), 
 		 .cpurdata(memmap), 
-		 .cpuwdata(CPU_DOUT[4:0]), 
-		 .memaddr(cache_hi_addr[12:8]), 
+		 .cpuwdata(CPU_DOUT[7:0]), 
+		 .memaddr(cache_hi_addr[11:6]), // A20 disabled (PCXT)
 		 .memdata(memmap_mux), 
-		 .WE(MEMORY_MAP & WR & WORD & IORQ & CPU_CE)
-   );
+		 .WE(MEMORY_MAP & WR & WORD & IORQ & CPU_CE),
+		 .WE_EMS(EMS_OE & WR & IORQ & CPU_CE),
+		 .EMS_OE(EMS_OE),
+		 .f_map_to_f(f_map_to_f)
+   );	
 
 	wire timer_spk;
 	timer_8253 timer 
@@ -507,20 +483,19 @@ module system_2MB
 		 .out2(timer_spk)
    );
 
-	always @ (posedge clk_4_762) begin
-		
+	always @ (posedge clk_4_762) begin		
 		s_ddr_rd <= {s_ddr_rd[0], ddr_rd};
 		s_ddr_wr <= {s_ddr_wr[0], ddr_wr};
 		cache_hi_addr <= s_ddr_wr[0] ? waddr : ADDR[20:8];
-		sysaddr <= {memmap_mux, cache_hi_addr[7:0], 6'b000000};
+		sysaddr <= {memmap_mux, cache_hi_addr[5:0], 6'b000000};
 		
 		if(s_ddr_wr[1]) command <= 2'b01;		// write 256 bytes cache
 		else if(s_ddr_rd[1]) command <= 2'b11;		// read 256 bytes cache
 		else command <= 2'b00;
 	end
 
-	always @ (posedge clk_9_524) begin
-		s_cache_mreq <= CACHE_MREQ;
+	always @ (posedge clk_9_524) begin		
+		s_cache_mreq <= CACHE_MREQ;		
 //		s_RS232_DCE_RXD <= RS232_DCE_RXD;
 //		s_RS232_HOST_RXD <= RS232_HOST_RXD;
 		if(IORQ & CPU_CE) begin
@@ -530,10 +505,17 @@ module system_2MB
 			end*/			 
 			if(WR & SPEAKER_PORT) speaker_on <= &CPU_DOUT[1:0];
 		end
+
+//LED
+	
+//	if(IORQ && CPU_CE && WR && LED_PORT)
+//		test_led <= CPU_DOUT[0];
+	
+
 // SD
 		if(CPU_CE) begin
-			SD_CK <= IORQ & INPUT_STATUS_OE & WR & ~WORD;
-			if(IORQ & INPUT_STATUS_OE & WR) begin
+			SD_CK <= IORQ & SD_OE & WR & ~WORD;
+			if(IORQ & SD_OE & WR) begin				
 				if(WORD) SD_n_CS <= ~CPU_DOUT[8]; // SD chip select
 				else SDI <= {SDI[6:0], SD_DO};
 			end

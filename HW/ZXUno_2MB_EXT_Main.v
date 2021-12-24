@@ -35,7 +35,11 @@ module ZXUno_Next186lite_2MB_EXT
 	wire VGA_HSYNC, VGA_VSYNC;
 	reg [5:0] raux, gaux, baux;
 	wire [1:0] monochrome_switcher;
-		
+	
+	wire clk_vga;
+	wire clk_25;
+	wire clk_9_524;
+	wire clk_4_762;			
 	
 	reg [5:0]red_weight[0:63] = { // 0.2126*R
 	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04,
@@ -58,10 +62,22 @@ module ZXUno_Next186lite_2MB_EXT
 	6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05
 	};
 	
+	dcm dcm_system 
+	(
+		.CLK_IN1(CLK_50MHZ), 
+		.CLK_OUT1(clk_vga), 		// 28.571 Mhz (GRAPHICS GREMLIN, VGAPORT, VRAM)
+		.CLK_OUT2(clk_25), 		// 25.000 Mhz (RTC, TIMER 8253)
+		.CLK_OUT3(clk_9_524), 	// 9.524 Mhz  (SYSCLK x 2 [CPU])
+		.CLK_OUT4(clk_4_762) 	// 4.762 Mhz  (SYSCLK, CACHE DDRCLK)
+		
+    );	
    
 	system_2MB sys_inst
 	(
-		.CLK_50MHZ(CLK_50MHZ),
+		.clk_vga(clk_vga),
+		.clk_25(clk_25),
+		.clk_9_524(clk_9_524),
+		.clk_4_762(clk_4_762),
 		.VGA_R(r),
 		.VGA_G(g),
 		.VGA_B(b),

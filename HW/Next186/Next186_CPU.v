@@ -157,7 +157,7 @@ module Next186_CPU(
 // signals
 	assign IORQ = &EAC;
 	assign LOCK = CPUStatus[5];
-	assign FLUSH = FFLUSH || ~IPWSEL || (ISIZE == 3'b000);
+	assign FLUSH = FFLUSH || ~IPWSEL || (ISIZE == 3'b000);	
 	wire [15:0]IPADD = ISIZE == 3'b000 ? CRTIP : IP + ISIZE;
 	wire [15:0]IPIN = IPWSEL ? IPADD : ALUOUT;
 	wire [1:0]MOD = FETCH[1][7:6];

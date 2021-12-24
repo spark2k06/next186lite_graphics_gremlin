@@ -7,14 +7,14 @@
 // Commons, PO Box 1866, Mountain View, CA 94042, USA.
 //
 module cga_vgaport(
-    input clk,
+    input wire clk,
 
-    input[3:0] video,
+    input wire[3:0] video,
 
     // Analog outputs
-    output[5:0] red,
-    output[5:0] green,
-    output[5:0] blue
+    output wire[5:0] red,
+    output wire[5:0] green,
+    output wire[5:0] blue
     );
 
     reg[17:0] c;

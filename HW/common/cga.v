@@ -53,19 +53,20 @@ module cga(
     wire status_cs;
     wire colorsel_cs;
     wire control_cs;
-    wire bus_mem_cs;
+    //wire bus_mem_cs;
 
     reg[7:0] bus_int_out;
     wire[7:0] bus_out_crtc;
     wire[7:0] bus_out_mem;
     wire[7:0] cga_status_reg;
-    reg[7:0] cga_control_reg = 8'b0010_1000; // 0010_1001
+    //reg[7:0] cga_control_reg = 8'b0010_1000; // (TEXT)
+	 reg[7:0] cga_control_reg = 8'b0010_1010; // (GFX 320 x 200)
     reg[7:0] cga_color_reg = 8'b0000_0000;
     wire hres_mode;
     wire grph_mode;
     wire bw_mode;
     wire mode_640;
-    // wire tandy_16_mode;
+    wire tandy_16_mode;
     wire video_enabled;
     wire blink_enabled;
 
@@ -104,9 +105,9 @@ module cga(
     reg bus_ior_synced_l;
     reg bus_iow_synced_l;
 
-    wire cpu_memsel;
-    reg[1:0] wait_state = 2'd0;
-    reg bus_rdy_latch; 
+    //wire cpu_memsel;
+    //reg[1:0] wait_state = 2'd0;
+    //reg bus_rdy_latch; 
 	 
 	 assign ram_a = {4'b0001, pixel_addr14, pixel_addr13, crtc_addr[11:0],
                     vram_read_a0};
@@ -119,8 +120,8 @@ module cga(
     // Synchronize ISA bus control lines to our clock
     always @ (posedge clk)
     begin
-        bus_memw_synced_l <= bus_memw_l;
-        bus_memr_synced_l <= bus_memr_l;
+        //bus_memw_synced_l <= bus_memw_l;
+        //bus_memr_synced_l <= bus_memr_l;
         bus_ior_synced_l <= bus_ior_l;
         bus_iow_synced_l <= bus_iow_l;
     end
@@ -135,18 +136,18 @@ module cga(
     assign colorsel_cs = (bus_a == IO_BASE_ADDR + 20'h9) & ~bus_aen;	 
     // Memory-mapped from B0000 to B7FFF
     //assign bus_mem_cs = (bus_a[19:15] == FRAMEBUFFER_ADDR[19:15]);
-	 assign bus_mem_cs = 1'b1;
+	 //assign bus_mem_cs = 1'b1;
 	 
     // Mux ISA bus data from every possible internal source.
     always @ (*)
     begin
         //if (bus_mem_cs & ~bus_memr_l) begin
         //    bus_int_out <= bus_out_mem;
-        //end else if (status_cs & ~bus_ior_l) begin
-        //    bus_int_out <= cga_status_reg;
-        //end else if (crtc_cs & ~bus_ior_l & (bus_a[0] == 1)) begin
-        //    bus_int_out <= bus_out_crtc;
-		  if (status_cs) begin
+        if (status_cs & ~bus_ior_l) begin
+            bus_int_out <= cga_status_reg;
+        end else if (crtc_cs & ~bus_ior_l & (bus_a[0] == 1)) begin
+            bus_int_out <= bus_out_crtc;
+		  end if (status_cs) begin
 				bus_int_out <= cga_status_reg;
 		  end else if (crtc_cs) begin
 				bus_int_out <= bus_out_crtc;
@@ -156,20 +157,23 @@ module cga(
     end
 
     // Only for read operations does bus_dir go high.
-    //assign bus_dir = ((crtc_cs | status_cs) & ~bus_ior_l) |
-    //                (bus_mem_cs & ~bus_memr_l);
-	 assign bus_dir = (crtc_cs | status_cs);
+    assign bus_dir = (crtc_cs | status_cs) & ~bus_ior_l;
+    //                | (bus_mem_cs & ~bus_memr_l);
+	 //assign bus_dir = (crtc_cs | status_cs);
     assign bus_out = bus_int_out;
 
     // Wait state generator
     // Optional for operation but required to run timing-sensitive demos
     // e.g. 8088MPH.
-    if (USE_BUS_WAIT == 0) begin
+    /*
+	 if (USE_BUS_WAIT == 0) begin
         assign bus_rdy = 1;
     end else begin
         assign bus_rdy = bus_rdy_latch;
     end
+	 */
 
+/*
     assign cpu_memsel = bus_mem_cs & (~bus_memr_l | ~bus_memw_l);
 
     always @ (posedge clk)
@@ -198,7 +202,7 @@ module cga(
             bus_rdy_latch <= 1;
         end
     end
-
+*/
 
     // status register (read only at 3BA)
     // FIXME: vsync_l should be delayed/synced to HCLK.
@@ -218,7 +222,7 @@ module cga(
     assign blink_enabled = cga_control_reg[5];
 
     // FIXME: temporary for testing
-    // assign tandy_16_mode = cga_control_reg[6];
+    assign tandy_16_mode = cga_control_reg[6];
 
     assign hsync = hsync_int;
 
@@ -301,7 +305,7 @@ module cga(
         .grph_mode(grph_mode),
         .bw_mode(bw_mode),
         .mode_640(mode_640),
-        //.tandy_16_mode(tandy_16_mode),
+        .tandy_16_mode(tandy_16_mode),
         .thin_font(thin_font),
         .vram_data(ram_1_d),
         .vram_read_char(vram_read_char),

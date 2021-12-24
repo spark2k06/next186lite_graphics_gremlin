@@ -2,39 +2,43 @@
 
 module ZXUnCore_Next186lite_512KB
 	(
-		input  CLK_50MHZ,
-		output [5:0]VGA_R,
-		output [5:0]VGA_G,
-		output [5:0]VGA_B,
-		output VGA_HSYNC,
-		output VGA_VSYNC,
-		output SRAM_WE_n,
-		output [19:0]SRAM_A,
-		inout [7:0]SRAM_D,
-		output LED,
-		output AUDIO_L,
-		output AUDIO_R,
-		inout PS2CLKA,
-		inout PS2CLKB,
-		inout PS2DATA,
-		inout PS2DATB,
-		output SD_nCS,
-		output SD_DI,
-		output SD_CK,
-		input SD_DO,
-		input P_A,
-		input P_U,
-		input P_D,
-		input P_L,
-		input P_R,
-		input P_tr		
+		input  wire CLK_50MHZ,
+		output wire [5:0]VGA_R,
+		output wire [5:0]VGA_G,
+		output wire [5:0]VGA_B,
+		output wire VGA_HSYNC,
+		output wire VGA_VSYNC,
+		output wire SRAM_WE_n,
+		output wire [19:0]SRAM_A,
+		inout  wire [7:0]SRAM_D,
+		output wire LED,
+		output wire AUDIO_L,
+		output wire AUDIO_R,
+		inout  wire PS2CLKA,
+		inout  wire PS2CLKB,
+		inout  wire PS2DATA,
+		inout  wire PS2DATB,
+		output wire SD_nCS,
+		output wire SD_DI,
+		output wire SD_CK,
+		input  wire SD_DO,
+		input  wire P_A,
+		input  wire P_U,
+		input  wire P_D,
+		input  wire P_L,
+		input  wire P_R,
+		input  wire P_tr		
 
 	);
 	
 	wire [5:0] r, g, b;	
-	wire VGA_HSYNC, VGA_VSYNC;
 	reg [5:0] raux, gaux, baux;
 	wire [1:0] monochrome_switcher;
+	
+	wire clk_vga;
+	wire clk_25;
+	wire clk_9_524;
+	wire clk_4_762;
 		
 	
 	reg [5:0]red_weight[0:63] = { // 0.2126*R
@@ -58,10 +62,22 @@ module ZXUnCore_Next186lite_512KB
 	6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05
 	};
 	
+	dcm dcm_system 
+	(
+		.CLK_IN1(CLK_50MHZ), 
+		.CLK_OUT1(clk_vga), 		// 28.571 Mhz (GRAPHICS GREMLIN, VGAPORT, VRAM)
+		.CLK_OUT2(clk_25), 		// 25.000 Mhz (RTC, TIMER 8253)
+		.CLK_OUT3(clk_9_524), 	// 9.524 Mhz  (SYSCLK x 2 [CPU])
+		.CLK_OUT4(clk_4_762) 	// 4.762 Mhz  (SYSCLK, CACHE DDRCLK)
+		
+    );
    
 	system_512KB sys_inst
 	(
-		.CLK_50MHZ(CLK_50MHZ),
+		.clk_vga(clk_vga),
+		.clk_25(clk_25),
+		.clk_9_524(clk_9_524),
+		.clk_4_762(clk_4_762),
 		.VGA_R(r),
 		.VGA_G(g),
 		.VGA_B(b),
