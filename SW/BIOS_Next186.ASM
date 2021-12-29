@@ -184,7 +184,7 @@ check_f_map_7:
         cmp     al, 07h
         jz      f_map_7
 
-        push    07e00h      ; bios512kb_to_sram
+        push    07e00h
         pop     es
         push    0fe00h
         pop     ds
@@ -3898,6 +3898,13 @@ sdverify:
         push    sdvblk
         jmp     short sdread1
 sdread:   ; DX:AX sector, ES:BX buffer, CX=sectors. returns AX=read sectors
+        cmp     byte ptr cs:[sdtype], 1
+        jz      short sdhc1
+        push    cx
+        mov     cx, 200h
+        mul     cx ; DX: AX * 512 for compatibility with SD standard (without HC)        
+        pop     cx
+sdhc1:       
         push    sdrblk   ; push proc address (read or verify) on stack
 sdread1:        
         push    ax
@@ -3971,6 +3978,14 @@ sdr1:
 
 ;---------------------  write ----------------------
 sdwrite:   ; DX:AX sector, ES:BX buffer, CX=sectors, returns AX=wrote sectors
+        cmp     byte ptr cs:[sdtype], 1
+        jz      short sdhc2
+        push    cx
+        mov     cx, 200h
+        mul     cx ; DX: AX * 512 for compatibility with SD standard (without HC)        
+        pop     cx
+sdhc2: 
+        
         push    ax
         mov     al, dl
         push    ax
@@ -4026,7 +4041,7 @@ sdwwait:
         jnz     short sdwms       ; multiple sectors
 
         cmp     bp, 1
-        je      short sdr1
+        je      sdr1
         mov     al, 0fdh     ; multiple end transfer
         call    sdsb 
 		call	sdrb     
@@ -4057,7 +4072,7 @@ sdinit1:                   ; send 80T
         pop     ds
         call    sdcmd
         dec     ah
-        jnz     short sdexit ; error
+        jnz     sdexit ; error
         
         mov     si, offset SD_CMD8
         call    sdcmd8T
@@ -4092,11 +4107,13 @@ repinit:
         push    ss
         pop     ds
         call    sdrblk
-        pop     ax
+        pop     ax        
+        mov     byte ptr cs:[sdtype], 0
         test    al, 40h     ; test OCR bit 30 (CCS)
         pop     ax
-        jz      short sdexit; no SDHC
-
+        jz      short standard_sd        
+        mov     byte ptr cs:[sdtype], 1
+standard_sd:
         mov     si, offset SD_CMD9 ; get size info
         push    cs
         pop     ds
@@ -4112,6 +4129,9 @@ repinit:
         push    ss
         pop     ds
         call    sdrblk
+        
+        cmp     byte ptr cs:[sdtype], 1
+        jnz     short getsize_standard_sd
         mov     cx, [di-10]
         rol     cx, 8
         inc     cx
@@ -4127,6 +4147,46 @@ sdexit:
         pop     cx
         pop     ds
         ret
+
+getsize_standard_sd: 
+
+; TODO
+
+; Improve this routine to get READ_BL_LEN and C_SIZE_MULT from CSD, references:
+
+; https://www.ele.uva.es/~jesman/BigSeti/ftp/Componentes/Memoria%20SD%20o%20MMC/SD%20Card.pdf
+; https://archive.goughlui.com/static/csdecode.htm
+; https://www.fatalerrors.org/a/sd-card-initialization-and-command-details.html
+
+; CSD lengh: 16 bytes
+; CSD offset 0: [di-18]
+
+; With the current result of C_SIZE + 1 (now CX) obtain the total size in bytes using the following formula: TOTAL_SIZE_BYTES = (C_SIZE + 1) x READ_BL_LEN x C_SIZE_MULT
+
+; Finally perform the following operation: TOTAL_SIZE_MB = (TOTAL_SIZE_BYTES / 1024/1024) x 2
+; Save the result again in CX before finishing, with which we will always obtain a correct result for standard SD cards.
+
+        mov     dx, [di-12]
+        mov     cl, 10
+        and     dx, 3
+        shl     dx, cl
+        mov     ax, [di-11]
+        mov     cl, 2
+        shl     ax, cl
+        and     ah, 3
+        add     dx, ax
+        mov     al, [di-10]
+        mov     cl, 6
+        shr     al, cl
+        xor     ah, ah
+        add     dx, ax
+        inc     dx
+        mov     cx, dx
+        mov     sp, di
+        mov     dx, 300h
+        jmp     short sdexit
+
+
 sdinit endp
     
 SD_CMD0     db  40h, 0, 0, 0, 0, 95h
@@ -4314,6 +4374,7 @@ MODES	db	2Ch,28h,2Dh,29h,2Ah,2Eh,1Eh,29h ; Table of mode sets
 TABMUL	db	00h,00h,10h,10h,20h,20h,20h,30h ; Table lookup for multiply
 
 ramsize dw  0010h                           ; Default BIOS 2MB
+sdtype  db  00h                             ; 00h -> SD, 01h -> SDHC
 
 gfx_font:
 	db	 00h, 00h,   00h,  00h,  00h,  00h,  00h,  00h

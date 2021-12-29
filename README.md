@@ -26,6 +26,11 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 # Historial de cambios
 
+### ZXUno PCXT CGA (Beta 0.3)
+
+* Corrección del fallo de la primera línea fantasma visible en modo texto.
+* Compatibilidad con tarjetas de memoria SD estandar, menores de 4GB.
+
 ### ZXUno PCXT CGA (Beta 0.2)
 
 * Refactorización, unificación y limpieza de ficheros del proyecto.

@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.7
-# Date: Fri Dec 24 07:19:27 2021
+# Date: Sun Dec 26 11:18:37 2021
 #
 ##############################################################
 #
@@ -57,7 +57,7 @@ CSET enable_32bit_address=false
 CSET enable_a=Use_ENA_Pin
 CSET enable_b=Use_ENB_Pin
 CSET error_injection_type=Single_Bit_Error_Injection
-CSET fill_remaining_memory_locations=false
+CSET fill_remaining_memory_locations=true
 CSET interface_type=Native
 CSET load_init_file=false
 CSET mem_file=no_Mem_file_loaded
@@ -82,7 +82,7 @@ CSET register_porta_output_of_memory_primitives=false
 CSET register_portb_output_of_memory_core=false
 CSET register_portb_output_of_memory_primitives=false
 CSET register_portb_output_of_softecc=false
-CSET remaining_memory_locations=0
+CSET remaining_memory_locations=FFFFFFFF
 CSET reset_memory_latch_a=false
 CSET reset_memory_latch_b=false
 CSET reset_priority_a=CE
@@ -105,4 +105,4 @@ CSET write_width_b=8
 MISC pkg_timestamp=2012-11-19T16:22:25Z
 # END Extra information
 GENERATE
-# CRC: 9bf1447c
+# CRC: 4b1d6e66

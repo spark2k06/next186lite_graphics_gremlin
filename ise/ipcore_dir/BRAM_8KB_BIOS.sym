@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <symbol version="7" name="BRAM_8KB_BIOS">
     <symboltype>BLOCK</symboltype>
-    <timestamp>2021-12-24T10:48:41</timestamp>
+    <timestamp>2021-12-29T8:15:27</timestamp>
     <pin polarity="Input" x="0" y="80" name="addra[10:0]" />
     <pin polarity="Input" x="0" y="144" name="ena" />
     <pin polarity="Input" x="0" y="272" name="clka" />
