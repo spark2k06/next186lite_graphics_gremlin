@@ -65,11 +65,13 @@ module unit186(
 		output MREQ,
 		output IORQ,
 		output WR,
-		output WORD
+		output WORD,
+		input FASTIO
 		
     );
 
 	wire [15:0] CPU_DIN;
+	wire [15:0]CPU_WDATA;
 	wire [20:0] CPU_IADDR;
 	wire [20:0] CPU_ADDR;
 	wire [47:0] CPU_INSTR;
@@ -80,13 +82,15 @@ module unit186(
 	
 	assign ADDR[1:0] = CPU_ADDR[1:0];
 	assign CPU_CE = CE_186 & CE;
-	assign PORT_ADDR = CPU_ADDR[15:0];
+
 
 	Next186_CPU cpu 
 	(
 		 .ADDR(CPU_ADDR), 
+		 .PORT_ADDR(PORT_ADDR),
 		 .DIN(IORQ | INTA ? INPORT : CPU_DIN), 
-		 .DOUT(CPU_DOUT), 
+		 .DOUT(CPU_WDATA),
+		 .POUT(CPU_DOUT),
 		 .CLK(CLK), 
 		 .CE(CPU_CE), 
 		 .INTR(INTR), 
@@ -125,9 +129,11 @@ module unit186(
 		 .RAM_MREQ(MREQ), 
 		 .RAM_WMASK(WMASK), 
 		 .DOUT(CPU_DIN), 
-		 .DIN(CPU_DOUT), 
+		 .DIN(CPU_WDATA), 
 		 .CE(CE),
-		 .WSEL({~CPU_ADDR[0], CPU_ADDR[0]})
+		 .WSEL({~CPU_ADDR[0], CPU_ADDR[0]}),
+		 .IORQ(IORQ),
+		 .FASTIO(FASTIO)
 	);
 		 
 endmodule

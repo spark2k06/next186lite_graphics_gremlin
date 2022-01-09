@@ -89,6 +89,7 @@ module Next186_ALU(
 	 input INC2,
 	 output reg [15:0]FOUT,
     output reg [15:0]ALUOUT,
+    output [15:0]ALUOUTA,
 	 output reg ALUCONT,
 	 output NULLSHIFT,
 	 output COUT,
@@ -119,6 +120,7 @@ module Next186_ALU(
 	assign {SC8OUT, SUMOUT[7:4]} = SUMOP1[7:4] + SUMOP2[7:4] + AF;
 	assign {SC16OUT, SUMOUT[15:8]} = SUMOP1[15:8] + SUMOP2[15:8] + SC8OUT;
 	assign COUT = (WORD ? SC16OUT : SC8OUT) ^ CPLOP2;
+	assign ALUOUTA = ALUOP == 5'b11111 ? RB : SUMOUT;
 
 // SHIFTER
 	reg [4:0]SHNOPT;	// optimized shift
@@ -291,14 +293,13 @@ endmodule
 // 1100 - 
 // 1101 - SP+2+DISP
 // 1110 - DISP[7:0]<<2
-// 1111 - PIO
+// 1111 - 
 module Next186_EA(
     input [15:0] SP,
     input [15:0] BX,
     input [15:0] BP,
     input [15:0] SI,
     input [15:0] DI,
-	 input [15:0] PIO,
 	 input [15:0] TMP16,
 	 input [7:0]  AL,
     input [15:0] AIMM,
@@ -329,7 +330,6 @@ module Next186_EA(
 			4'b1010: OP3 = {8'b00000000, AL};	// XLAT
 			4'b1001, 4'b1011:	OP3 = 16'h0000;	// SP/TMP16 + 2
 			4'b1110: OP3 = {6'b000000, AIMM[7:0], 2'b00};	// int
-			4'b1111: OP3 = PIO;	// in,out
 			default: OP3 = AIMM;
 		endcase
 	end

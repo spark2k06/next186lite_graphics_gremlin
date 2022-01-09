@@ -59,20 +59,24 @@
 // 12Apr2013 - fix IDIV when Q=0
 // 16May2013 - fix PUSHA SP pushed stack value, which should be the one before PUSHA
 // 25May2013 - generate invalid opcode exception for MOV FS and GS 
+// 08Sep2016 - separate port address (PORT_ADDR)
+// 15Sep2017 - implemented SALC undocumented instruction
 ///////////////////////////////////////////////////////////////////////////////////
 `timescale 1ns / 1ps
 
 module Next186_CPU(
-    output [20:0] ADDR,
-    input [15:0] DIN,
-    output [15:0] DOUT,
+    output [20:0]ADDR,			// mem address
+	 output [15:0]PORT_ADDR,	// port address
+    input [15:0]DIN,		// mem/port data in
+    output [15:0]DOUT,	// mem data out
+    output [15:0]POUT,	// port data out
 	 input CLK,
 	 input CE,
 	 input INTR,
 	 input NMI,
 	 input RST,
 	 output reg MREQ,
-	 output wire IORQ,
+	 output reg IORQ,
 	 output reg INTA,
 	 output reg WR,
 	 output reg WORD,
@@ -100,6 +104,7 @@ module Next186_CPU(
 	wire [15:0]FLAGS;
 	wire [15:0]FIN;
 	wire [15:0]ALUOUT;
+	wire [15:0]ALUOUTA;
 	wire [15:0]AIMM1;
 	reg [15:0]DIMM1;
 	wire [15:0]RS;
@@ -151,15 +156,19 @@ module Next186_CPU(
 	reg [5:0]ICODE1 = 23;
 	reg NULLSEG;
 	reg DIVOP;
+	reg DIVIRQ;
+	reg AAMIRQ;
+	reg RCOUT;
 	reg FFLUSH_REQ = 0;
 	reg FFLUSH = 0;
 
 // signals
-	assign IORQ = &EAC;
+//	assign IORQ = &EAC;
 	assign LOCK = CPUStatus[5];
 	assign FLUSH = FFLUSH || ~IPWSEL || (ISIZE == 3'b000);	
+	assign PORT_ADDR = FETCH[0][3] ? DX : {8'h00, FETCH[1]};
 	wire [15:0]IPADD = ISIZE == 3'b000 ? CRTIP : IP + ISIZE;
-	wire [15:0]IPIN = IPWSEL ? IPADD : ALUOUT;
+	wire [15:0]IPIN = IPWSEL ? IPADD : ALUOUTA;
 	wire [1:0]MOD = FETCH[1][7:6];
 	wire [2:0]REG = FETCH[1][5:3];
 	wire [2:0]RM  = FETCH[1][2:0];
@@ -243,6 +252,7 @@ module Next186_CPU(
 	 .EXOP(FETCH[1][5:3]),
 	 .FLAGOP(FETCH[0][3:0]),
 	 .ALUOUT(ALUOUT),
+	 .ALUOUTA(ALUOUTA),
 	 .WORD(WORD),
 	 .ALUCONT(ALUCONT),
 	 .NULLSHIFT(NULLSHIFT),
@@ -258,7 +268,6 @@ module Next186_CPU(
     .BP(NOBP ? 16'h0000 : BP), 
     .SI(SI), 
     .DI(DI), 
-	 .PIO(FETCH[0][3] ? DX : {8'h00, FETCH[1]}),
 	 .TMP16(TMP16),
 	 .AL(AX[7:0]),
     .AIMM(AEXT ? {{8{AIMM1[7]}}, AIMM1[7:0]} : (DISP16 ? AIMM1 : 16'h0000)), 
@@ -266,7 +275,8 @@ module Next186_CPU(
 	 .EAC(EAC)
     );
 
-	 assign DOUT = DOSEL[1] ? DOSEL[0] ? AX : TMP16 : DOSEL[0] ? IPADD : ALUOUT;
+	 assign POUT = DOSEL[0] ? AX : TMP16;
+	 assign DOUT = DOSEL[1] ? POUT : DOSEL[0] ? IPADD : ALUOUT;
 	 assign ADDR = {{NULLSEG ? 16'h0000 : RS} + {5'b00000, ADDR16_SP[15:4]}, ADDR16_SP[3:0]};
 	 assign IADDR = {CS + {5'b00000, IPIN[15:4]}, IPIN[3:0]};
 	 assign AIMM1 = ASEL ? {FETCH[3], FETCH[2]} : {FETCH[2], FETCH[1]};
@@ -303,7 +313,7 @@ module Next186_CPU(
 					CPUStatus[5:0] <= status[5:0];
 					ICODE1 <= ICODE(INSTR[7:0]);
 				end else begin		// no interrupt, no fetch
-					STAGE <= STAGE + {DIVSTAGE, ALUSTAGE} + 1; 
+					STAGE <= STAGE + {DIVSTAGE, ALUSTAGE} + 1'b1; 
 					if(&DOSEL) {FETCH[3], FETCH[2]} <= |DISEL ? DIN : RB;
 					TZF <= FIN[6];		// zero flag for BOUND
 					TLF <= FIN[7] != FIN[11];	// less flag for BOUND
@@ -321,6 +331,9 @@ module Next186_CPU(
 			RDIVEXC <= DIVOP & DIVEXC & ~IDIV; // bit 8/16 for unsigned DIV
 			CMPS <= (~FETCH[0][0] | (FETCH[3] == DIN[15:8])) & (FETCH[2] == DIN[7:0]);	// early EQ test for CMPS
 			SCAS <= (~FETCH[0][0] | (AX[15:8] == DIN[15:8])) & (AX[7:0] == DIN[7:0]);  // early EQ test for SCAS
+			RCOUT <= COUT;
+			DIVIRQ <= ~|STAGE[6:3] & DIVC & (~STAGE[2] | (~DIVSGN & IDIV)) & (&STAGE[1:0]); // DIV stage4, div loop
+			AAMIRQ <= ~|STAGE[6:2] & DIVC & (STAGE[1:0] == 2'b01); // AAM stage2, div
 		end
 
 	always @(ISEL, FETCH[0], FETCH[1], FETCH[2], FETCH[3], FETCH[4], FETCH[5])
@@ -346,7 +359,7 @@ module Next186_CPU(
 		endcase
 	end
 
-	 always @(FETCH[0], FETCH[1], FETCH[2], FETCH[3], FETCH[4], FETCH[5], MOD, REG, RM, CPUStatus, USEBP, NOBP, RASEL, ISIZEI, TLF, EAC, COUT, DIVEND, DIVC, QSGN, CMPS, SCAS,
+	 always @(FETCH[0], FETCH[1], FETCH[2], FETCH[3], FETCH[4], FETCH[5], MOD, REG, RM, CPUStatus, USEBP, NOBP, RASEL, ISIZEI, TLF, EAC, RCOUT, DIVEND, DIVIRQ, AAMIRQ, QSGN, CMPS, SCAS,
 				 WBIT, ISIZES, ISELS, WRBIT, ISIZEW, STAGE, NULLSHIFT, ALUCONT, FLAGS, CXZ, RCXZ, NRORCXLE1, TZF, JMPC, LOOPC, ICODE1, DIVQSGN, DIVSGN, DIVRSGN, FIN, IDIV, AX) begin
 		WORD = FETCH[0][0];
 		BASEL = FETCH[0][1] | &MOD;
@@ -368,6 +381,7 @@ module Next186_CPU(
 		ISIZE = 3'bxxx;
 		IPWSEL = 1'b1;		// IP + ISIZE
 		IFETCH = 1'b1;
+		IORQ = 1'b0;
 		status = 6'b00x0xx;
 
 		DISP16 = MOD == 2'b10 || NOBP;
@@ -432,7 +446,6 @@ module Next186_CPU(
 				DISEL = 2'b00;
 				ASEL = 1'b0;
 				AEXT = 1'b0;
-				MREQ = 1'b1;
 				WR = FETCH[0][1];
 				WE[1:0] = WRBIT;		// IP, RASEL_HI/RASEL_LO
 				ISIZE = 3;
@@ -694,8 +707,9 @@ module Next186_CPU(
 				DISEL = 2'b00;	//DIN
 				MREQ = 1'b0;
 				ISIZE = FETCH[0][3] ? 1 : 2;
-				EAC = 4'b1111;
-				NULLSEG = 1'b1;
+				IORQ = 1'b1;
+//				EAC = 4'b1111;
+//				NULLSEG = 1'b1;
 			end
 // --------------------------------  out --------------------------------
 			16:	begin
@@ -703,8 +717,9 @@ module Next186_CPU(
 				MREQ = 1'b0;
 				WR = 1'b1;
 				ISIZE = FETCH[0][3] ? 1 : 2;
-				EAC = 4'b1111;
-				NULLSEG = 1'b1;
+				IORQ = 1'b1;
+//				EAC = 4'b1111;
+//				NULLSEG = 1'b1;
 			end
 // --------------------------------  xlat --------------------------------
 			17: begin
@@ -907,6 +922,8 @@ module Next186_CPU(
 								DOSEL = 2'b11;	 
 								IFETCH = 1'b0;
 								DIVSTAGE = ~QSGN;
+								RASEL = 3'b000; // AX
+								ALUOP = 5'b01001;		// DEC
 							end
 							3'b001: begin	// stage2, pre dec AX
 //								WORD = 1'b1;
@@ -914,7 +931,7 @@ module Next186_CPU(
 								WE[1:0] = 2'b11;		// RASEL_HI, RASEL_LO
 								ALUOP = 5'b01001;		// DEC
 								IFETCH = 1'b0;
-								ALUSTAGE = ~(DIVQSGN && FETCH[0][0] && COUT);
+								ALUSTAGE = ~(DIVQSGN && FETCH[0][0] && RCOUT);
 							end
 							3'b010: begin // stage3, pre dec DX
 								RASEL = 3'b010; 	// DX
@@ -931,9 +948,8 @@ module Next186_CPU(
 								DIVSTAGE = ~DIVEND;
 								ALUSTAGE = ~DIVEND | ~DIVQSGN;
 								DIVOP = 1'b1;
-//								IRQ = ~|STAGE[6:3] & DIVC & ~(STAGE[2] & DIVSGN); - DIV bug, fixed 23Dec2012
-								IRQ = ~|STAGE[6:3] & DIVC & (~STAGE[2] | (~DIVSGN & IDIV)); // early overflow for positive quotient
-								IFETCH = (DIVEND && ~DIVQSGN && ~DIVRSGN) || IRQ;
+								IRQ = DIVIRQ; //~|STAGE[6:3] & DIVC & (~STAGE[2] | (~DIVSGN & IDIV)); // early overflow for positive quotient
+								IFETCH = (DIVEND && ~DIVQSGN && ~DIVRSGN) || DIVIRQ;
 							end
 							3'b100: begin		// stage5, post inc R
 								RASEL = WORD ? 3'b010 : 3'b100; // DX/AH
@@ -1197,8 +1213,9 @@ module Next186_CPU(
 					DISEL = 2'b00;		//DIN
 					IFETCH = RCXZ;		// REP & CX==0
 					MREQ = 1'b0;
-					EAC = {~RCXZ, 3'b111};
-					NULLSEG = 1'b1;
+					IORQ = ~RCXZ;
+//					EAC = {~RCXZ, 3'b111};
+//					NULLSEG = 1'b1;
 				end else begin			// stage2, write TMP16 in ES:[DI], inc/dec DI, dec CX
 					RASEL = 3'b111; 	// DI
 					RSSEL = 2'b00;		// ES
@@ -1231,12 +1248,13 @@ module Next186_CPU(
 				end else begin			// stage2, out TMP16 at port DX, dec CX
 					DOSEL = 2'b10;		// TMP16	 	
 					MREQ = 1'b0;
-					EAC = 4'b1111;
+					IORQ = 1'b1;
+//					EAC = 4'b1111;
 					WR = 1'b1;
 					IFETCH = NRORCXLE1;  // not REP or CX<=1
 					DECCX = CPUStatus[4];
 					REPINT = 1'b1;
-					NULLSEG = 1'b1;
+//					NULLSEG = 1'b1;
 				end
 				ISIZE = IFETCH ? 1 : 0;
 			end
@@ -1532,8 +1550,8 @@ module Next186_CPU(
 						DIVSTAGE = ~DIVEND;
 						ALUSTAGE = ~DIVEND;
 						DIVOP = 1'b1;
-						IRQ = ~|STAGE[6:2] & DIVC;
-						IFETCH = IRQ;
+						IRQ = AAMIRQ;//~|STAGE[6:2] & DIVC;
+						IFETCH = AAMIRQ;
 					end
 					3'b110: begin	// stage 3, AH <- AL, TMP16 <- AH
 						RASEL = 3'b100; // AH
@@ -1634,7 +1652,16 @@ module Next186_CPU(
 					ISIZE = 0;
 					IRQ = 1'b1;
 				end
-			
+// --------------------------------  SALC --------------------------------
+			55: begin
+				RASEL = 3'b000;	// dest AL (WORD is default 0)
+				BASEL = 1'b0;
+				BBSEL = 2'b00;
+				ALUOP = 3;	// sbb
+				MREQ = 1'b0;
+				WE[0] = 1'b1;	// RASEL_LO
+				ISIZE = 1;
+			end
 // --------------------------------  bad opcode/esc --------------------------------
 			default: begin
 				MREQ = 1'b0;
@@ -1799,8 +1826,10 @@ function [5:0]ICODE;
 			8'b11010100: ICODE = 53;	
 // --------------------------------  reset, irq, nmi, intr --------------------------------
 			8'b00001111: ICODE = 54;		
+// --------------------------------  SALC --------------------------------
+			8'b11010110: ICODE = 55;
 // --------------------------------  bad opcode/esc --------------------------------
-			default: ICODE = 55;
+			default: ICODE = 56;
 		endcase
 	end
 endfunction

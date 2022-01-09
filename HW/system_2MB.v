@@ -62,6 +62,8 @@
 0003 - 32 bit CPU command port W
 		16'b00000cvvvvvvvvvv = set r/w pointer - 256 32bit integers, 1024 instructions. c=1 for code write, 0 for data read/write
 		16'b100wwwvvvvvvvvvv = run ip - 1024 instructions, 3 bit data window offs
+0006 - WORD write: NMIonIORQ low port address. NMI if (IORQ and PORT_ADDR >= NMIonIORQ_LO and PORT_ADDR <= NMIonIORQ_HI)
+0007 - WORD write: NMIonIORQ high port address
 
 0021, 00a1 - interrupt controller data ports. R/W interrupt mask, 1disabled/0enabled (bit0=timer, bit1=keyboard, bit3=RTC, bit4=mouse) 
 
@@ -125,11 +127,14 @@
 `timescale 1ns / 1ps
 
 module system_2MB
-	(
+	(		 	 
 		 input clk_vga,
+		 input clk_cpu,
+		 input clk_kb,
+		 input clk_sdr,
+		 input clk_sram,
+		 input ce_opl2,
 		 input clk_25,
-		 input clk_9_524,
-		 input clk_4_762,
 		 output [20:0]SRAM_ADDR,
 		 inout [7:0]SRAM_DATA,
 		 output SRAM_WE_n,
@@ -137,20 +142,21 @@ module system_2MB
 		 output wire [5:0]VGA_G,
 		 output wire [5:0]VGA_B,
 		 output wire VGA_HSYNC,
-		 output wire VGA_VSYNC,
+		 output wire VGA_VSYNC,		 
 		 output LED,
 		 output reg SD_n_CS = 1,
 		 output wire SD_DI,
 		 output reg SD_CK = 0,
-		 input SD_DO,
-		 
+		 input SD_DO,		 
 		 output AUD_L,
 		 output AUD_R,
 	 	 inout PS2_CLK1,
 		 inout PS2_CLK2,
 		 inout PS2_DATA1,
 		 inout PS2_DATA2,
-		 output wire [1:0] monochrome_switcher
+		 output wire [1:0] monochrome_switcher,
+		 output wire [1:0] cpu_speed_switcher
+		 
     );
 		 
 	wire [15:0]sys_DIN;
@@ -188,9 +194,10 @@ module system_2MB
 	wire SD_OE = PORT_ADDR[15:0] == 16'h0300;
 	wire EMS_OE = PORT_ADDR[15:2] == 14'b00000010011000; // 260h..263h
 	wire RTC_SELECT = PORT_ADDR[15:0] == 16'h0070;	
-	wire PIC_OE = PORT_ADDR[15:8] == 8'h00 && PORT_ADDR[6:0] == 7'b0100001;	// 21h, a1h
+	wire PIC_OE = PORT_ADDR[15:8] == 8'h00 && PORT_ADDR[6:1] == 6'b010000;	// 20h, 21h, a0h, a1h
 	wire KB_OE = PORT_ADDR[15:4] == 12'h006 && {PORT_ADDR[3], PORT_ADDR[1:0]} == 3'b000; // 60h, 64h
-	wire JOYSTICK = PORT_ADDR[15:4] == 12'h020; // 0x200-0x20f	
+	wire JOYSTICK = PORT_ADDR[15:4] == 12'h020; // 0x200-0x20f
+	wire ADLIB_OE = PORT_ADDR[15:1] == (16'h0388 >> 1); // 0x388, 0x389
 	wire [15:0]PORT_IN;
 	wire [7:0]TIMER_DOUT;
 	wire [7:0]KB_DOUT;
@@ -200,7 +207,8 @@ module system_2MB
 	wire [7:0] CRTC_DOUT;	
 	
 	wire HALT;
-
+	wire nmi_button;
+		
 	reg [1:0]command = 0;
 	reg [1:0]s_ddr_rd = 0;
 	reg [1:0]s_ddr_wr = 0;
@@ -222,7 +230,8 @@ module system_2MB
 	wire [11:0]cursorpos;
 	wire [15:0]scraddr;
 	reg flash_on;
-	reg speaker_on = 0;	
+	reg [1:0] speaker_on = 0;
+	reg [9:0]rNMI = 0;
 	
 	reg [18:0]sysaddr;
 	reg [2:0]auto_flush = 3'b000;
@@ -231,6 +240,19 @@ module system_2MB
 	//reg test_led = 0;
 	//assign LED = test_led;	
 		
+// NMI on IORQ
+	reg [15:0]NMIonIORQ_LO = 16'h0001;
+	reg [15:0]NMIonIORQ_HI = 16'h0000;
+	
+// Adlib interface (JTOPL2)
+   wire [7:0]opl2data;	
+   wire [15:0]opl2snd;
+	reg [31:0]sndval = 0;
+	
+	wire [16:0]sndmix = (({opl2snd[15], opl2snd}) << 2) + ((timer_spk & speaker_on[1]) << 15); // signed mixer
+	wire [15:0]sndamp = (~|sndmix[16:15] | &sndmix[16:15]) ? {!sndmix[15], sndmix[14:0]} : {16{!sndmix[16]}}; // clamp to [-32768..32767] and add 32878
+	wire sndsign = sndval[31:16] < sndamp;
+	
 // SD interface
 	reg [7:0]SDI;
 	assign SD_DI = CPU_DOUT[7];
@@ -238,9 +260,11 @@ module system_2MB
 	assign PORT_IN[15:8] = 
 		({8{SD_OE}} & SDI);
 
+
 	assign PORT_IN[7:0] = 							 							 
 							 ({8{KB_OE}} & KB_DOUT) |
 							 ({8{SD_OE}} & {8'b1x000000}) |
+							 ({8{SPEAKER_PORT}} & {6'd0, speaker_on}) |
 							 ({8{CRTC_OE}} & CRTC_DOUT) |
 							 ({8{MEMORY_SIZE}} & 8'd2) | // 1: 512KB, 2: 2MB
 							 ({8{MEMORY_MAP}} & memmap) |
@@ -248,6 +272,7 @@ module system_2MB
 							 ({8{TIMER_OE}} & TIMER_DOUT) |
 							 ({8{PIC_OE}} & PIC_DOUT) |
 							 ({8{LED_PORT}} & {7'b0000000,LED}) |
+							 ({8{ADLIB_OE}} & opl2data)  |
 							 ({8{JOYSTICK}});
 
     // Sets up the card to generate a video signal
@@ -308,7 +333,7 @@ module system_2MB
 
 	SRAM_8bit SRAM
 	(
-		.sys_CLK(clk_4_762),							// clock
+		.sys_CLK(clk_sdr),							// clock
 		.sys_CMD(command),							// 00=nop, 01 = write 256 bytes, 11=read 256 bytes
 		.sys_ADDR(sysaddr),							// byte address
 		.sys_DIN(sys_DIN),							// data input
@@ -316,7 +341,7 @@ module system_2MB
 		.sys_rd_data_valid(sys_rd_data_valid),	// data valid read
 		.sys_wr_data_valid(sys_wr_data_valid),	// data valid write
 		
-		.sram_clk(clk_9_524),
+		.sram_clk(clk_sram),
 		.sram_n_WE(SRAM_WE_n),						// SRAM #WE
 		.sram_ADDR(SRAM_ADDR),						// SRAM address
 		.sram_DATA(SRAM_DATA)						// SRAM data
@@ -341,7 +366,7 @@ module system_2MB
 	
 	BRAM_8KB_BIOS BIOS
 	(
-	  .clka(clk_9_524), // input clka
+	  .clka(clk_cpu), // input clka
 	  .ena(BIOSROM), // input ena	  
 	  .addra(ADDR[12:2]), // input [10 : 0] addra	  
 	  .douta(bios_dout) // output [31 : 0] douta
@@ -350,7 +375,7 @@ module system_2MB
 			
 	BRAM_32KB_CRTC VRAM
 	(
-	  .clka(clk_9_524), // input clka
+	  .clka(clk_cpu), // input clka
 	  .ena(CRTCVRAM), // input ena
 	  .wea(RAM_WMASK),
 	  .addra(ADDR[14:2]), // input [12 : 0] addra
@@ -368,8 +393,14 @@ module system_2MB
 
   
   always @(posedge clk_25) begin
-  	  	if(RTCDIVEND) RTCDIV25 <= 0;	// real time clock
+  	  	sndval <= sndval - sndval[31:7] + (sndsign << 25);				
+		
+		if(RTCDIVEND) RTCDIV25 <= 0;	// real time clock
 		else RTCDIV25 <= RTCDIV25 + 1;  
+				
+		if(!nmi_button) rNMI <= 0;		// NMI
+		else if(!rNMI[9] && RTCDIVEND) rNMI <= rNMI + 1'b1;	// 1Mhz increment				
+		
 	end		
 	
 	
@@ -378,13 +409,13 @@ module system_2MB
 		 .addr(ADDR), 
 		 .dout(DRAM_dout), 
 		 .din(DOUT), 
-		 .clk(clk_9_524), 
+		 .clk(clk_cpu),
 		 .mreq(CACHE_MREQ), 
 		 .wmask(RAM_WMASK),
 		 .ce(CE), 
 		 .ddr_din(sys_DOUT), 
 		 .ddr_dout(sys_DIN), 
-		 .ddr_clk(clk_4_762), 
+		 .ddr_clk(clk_sdr), 
 		 .ddr_rd(ddr_rd), 
 		 .ddr_wr(ddr_wr),
 		 .waddr(waddr),
@@ -403,7 +434,7 @@ module system_2MB
 		 .cmd(PORT_ADDR[2]), // 64h
 		 .din(CPU_DOUT[7:0]), 
 		 .dout(KB_DOUT), 
-		 .clk(clk_9_524), 
+		 .clk(clk_kb),
 		 .I_KB(I_KB), 
 		 .I_MOUSE(I_MOUSE), 
 		 .CPU_RST(KB_RST), 
@@ -411,23 +442,29 @@ module system_2MB
 		 .PS2_CLK2(PS2_CLK2), 
 		 .PS2_DATA1(PS2_DATA1), 
 		 .PS2_DATA2(PS2_DATA2),
-		 .monochrome_switcher(monochrome_switcher)
+		 .monochrome_switcher(monochrome_switcher),
+		 .cpu_speed_switcher(cpu_speed_switcher),
+		 .nmi_button(nmi_button)
 	);
 	
 	wire [7:0]PIC_IVECT;
 	wire INT;
 	wire timer_int;
+	wire I_COM1;
 	PIC_8259 PIC 
 	(
-		 .CS(PIC_OE && IORQ && CPU_CE), // 21h, a1h
+		 .RST(!rstcount[4]),
+		 .CS(PIC_OE && IORQ && CPU_CE), // 20h, 21h, a0h, a1h
+		 .A(PORT_ADDR[0]),
 		 .WR(WR), 
 		 .din(CPU_DOUT[7:0]), 
+		 .slave(PORT_ADDR[7]),
 		 .dout(PIC_DOUT), 
 		 .ivect(PIC_IVECT), 
-		 .clk(clk_9_524), 
+		 .clk(clk_cpu),
 		 .INT(INT), 
 		 .IACK(INTA & CPU_CE), 
-		 .I({I_MOUSE, RTCEND, I_KB, timer_int})
+		 .I({I_COM1, I_MOUSE, RTCEND, I_KB, timer_int})
     );
 
 	unit186 CPUUnit
@@ -439,12 +476,13 @@ module system_2MB
 		 .DOUT(DOUT), 
 		 .ADDR(ADDR), 
 		 .WMASK(RAM_WMASK), 
-		 .CLK(clk_9_524), 
+		 .CLK(clk_cpu),
 		 .CE(CE/* & !WAITIO*/), 
 		 .CPU_CE(CPU_CE),
 		 .CE_186(CE_186),
 		 .INTR(INT), 
-		 .NMI(1'b0), 
+		 //.NMI(rNMI[9] || (CPU_CE && IORQ && PORT_ADDR >= NMIonIORQ_LO && PORT_ADDR <= NMIonIORQ_HI)),
+		 .NMI(CPU_CE && IORQ && PORT_ADDR >= NMIonIORQ_LO && PORT_ADDR <= NMIonIORQ_HI),
 		 .RST(!rstcount[4]), 
 		 .INTA(INTA), 
 		 .LOCK(LOCK), 
@@ -452,12 +490,13 @@ module system_2MB
 		 .MREQ(MREQ),
 		 .IORQ(IORQ),
 		 .WR(WR),
-		 .WORD(WORD)
+		 .WORD(WORD),
+		 .FASTIO(1'b0) // 1'b1 en Mist
 	);
 	
 	seg_map_2MB seg_mapper 
 	(
-		 .CLK(clk_9_524), 
+		 .CLK(clk_cpu),
 		 .cpuaddr(PORT_ADDR[3:0]), 
 		 .cpurdata(memmap), 
 		 .cpuwdata(CPU_DOUT[7:0]), 
@@ -478,12 +517,26 @@ module system_2MB
 		 .din(CPU_DOUT[7:0]), 
 		 .dout(TIMER_DOUT), 
 		 .CLK_25(clk_25),		 
-		 .clk(clk_9_524), 
+		 .clk(clk_cpu),
+		 .gate2(speaker_on[0]),
 		 .out0(timer_int), 
 		 .out2(timer_spk)
-   );
+   );	
+	
+	jtopl2 opl2 (
+		.rst(!rstcount[4]),
+		.clk(clk_cpu), 
+		.cen(ce_opl2),
+		.din(CPU_DOUT[7:0]),
+		.dout(opl2data),
+		.addr(PORT_ADDR[0]),		
+		.wr_n(~WR),
+		.cs_n(~(IORQ & CPU_CE & ADLIB_OE)),
+		.snd(opl2snd)		
+		//.irq_n()		
+	);
 
-	always @ (posedge clk_4_762) begin		
+	always @ (posedge clk_sdr) begin		
 		s_ddr_rd <= {s_ddr_rd[0], ddr_rd};
 		s_ddr_wr <= {s_ddr_wr[0], ddr_wr};
 		cache_hi_addr <= s_ddr_wr[0] ? waddr : ADDR[20:8];
@@ -493,18 +546,13 @@ module system_2MB
 		else if(s_ddr_rd[1]) command <= 2'b11;		// read 256 bytes cache
 		else command <= 2'b00;
 	end
-
-	always @ (posedge clk_9_524) begin		
+	
+	always @ (posedge clk_cpu) begin	
 		s_cache_mreq <= CACHE_MREQ;		
-//		s_RS232_DCE_RXD <= RS232_DCE_RXD;
-//		s_RS232_HOST_RXD <= RS232_HOST_RXD;
 		if(IORQ & CPU_CE) begin
-/*			if(WR & RS232_OE) begin
-				{RS232_HOST_RST, RS232_HOST_TXD, RS232_DCE_TXD} <= CPU_DOUT[2:0];
-				if(WORD) auto_flush[2] <= CPU_DOUT[0];
-			end*/			 
-			if(WR & SPEAKER_PORT) speaker_on <= &CPU_DOUT[1:0];
-		end
+			if(WR & SPEAKER_PORT) speaker_on <= CPU_DOUT[1:0];
+		end		
+		
 
 //LED
 	
@@ -536,10 +584,8 @@ module system_2MB
 		
 		//auto_flush[1:0] <= {auto_flush[0], vblnk};
 	end
-
-
-	assign DAC_AUDIO = 1'b0;
-	assign AUD_L = (speaker_on ? timer_spk : DAC_AUDIO );
-	assign AUD_R = AUD_L;
+	
+	assign AUD_L = sndsign;
+	assign AUD_R = sndsign;
 	
 endmodule

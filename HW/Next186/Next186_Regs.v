@@ -132,12 +132,7 @@ module Next186_Regs(
 			7: REG_BSEL = DI;
 		endcase
 	end
-/*	
-	 BUFG BUFG_inst (
-      .O(CLKD),     // Clock buffer output
-      .I(CLK)      // Clock buffer input
-   );
-*/
+
 	always @(posedge CLK)
 		if(CLKEN) begin
 			if(WE[0] && ASEL == 0) AX[7:0] <= FDRW[7:0];

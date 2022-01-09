@@ -162,7 +162,7 @@ SCANCODE1   equ 1
     
         org 0e000h        
 bios:        
-biosmsg     db 'Next186 SoC PC BIOS (C) 2014 Nicolae Dumitrache', 0
+biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.01.09]', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
         
@@ -221,11 +221,14 @@ bios2mb:
         mov     al, 36h
         out     43h, al
         xor     ax, ax
+        out     7, ax       ; NMIonIORQ_HI = 0
         out     40h, al
         out     40h, al      ; 18Hz PIT CH0
         out     61h, al      ; speaker off
         not     al
         out     21h, al      ; disable all interrupts
+		out		0a1h, al
+        out     6, ax       ; NMIonIORQ_LO = 255 -> disabled
         
 ; -------------------- Interrupt table init
         push    0
@@ -238,14 +241,6 @@ bios2mb:
         mov     word ptr [si+2], cs
         mov     cx, 256-2
         rep     movsw
-               
-        ;mov     word ptr ds:[0], offset int_dummy
-        ;mov     word ptr ds:[1*4], offset int_dummy
-        ;mov     word ptr ds:[2*4], offset int_dummy
-        ;mov     word ptr ds:[3*4], offset int_dummy
-        ;mov     word ptr ds:[4*4], offset int_dummy
-        ;mov     word ptr ds:[5*4], offset int_dummy
-        ;mov     word ptr ds:[6*4], offset int_dummy        
         mov     word ptr ds:[7*4], offset int07
         mov     word ptr ds:[8*4], offset int08
         mov     word ptr ds:[9*4], offset int09
@@ -379,11 +374,13 @@ mouseok:
         mov     al, ah
         out     60h, al     ; enable 8042 mouse and kb interrupts
 
-        mov     ax,1000-1   ; 1ms
-        out     70h, ax     ; set RTC frequency
+		mov     ax, 0		; 1000-1   ; 1ms
+		out     70h, ax     ; set RTC frequency (stop)
 
-        mov     al, 0e4h
-        out     21h, al     ; enable all PIC interrupts (8h, 9h, 70h, 74h)
+;		mov     al, 0
+		out     21h, al     ; enable all PIC interrupts (8h, 9h, 0ch)
+		out		0a1h, al	; enable all PIC interrupts (70h, 74h)
+		out		1, al		; intialize COM mux
 		inc		ax
 		out		1, ax		; enable auto flush on vblank
         sti                 ; enable CPU interrupts
@@ -428,10 +425,11 @@ nomousemsg:
 
 msgmouse    db 'PS2 Mouse detected', 13, 10, 0
 bioscont    db 13, 10, 'ZX-UNO port by DistWave', 13, 10
-            db 'Graphics Gremlin Integration by @spark2k06', 13, 10	
+            db 'Graphics Gremlin Integration by @spark2k06', 13, 10, 13, 10
             db 'CPU: 80186 4.77Mhz', 13, 10
-            db 'Graphics: CGA/Tandy', 0
-            
+            db 'Graphics: CGA/Tandy', 13,10
+            db 'Sound: Adlib (JTOPL2) and PC Speaker', 0
+                        
 bioscont512 db 13, 10, 'RAM: 512KB SRAM 8-bit', 13, 10
             db 'Cache: 8x256 bytes data/inst', 13, 10
             db 'HD0: ', 0
@@ -482,6 +480,16 @@ int08 proc near
         push    bx
         push    40h
         pop     ds
+
+	mov     bx, 40h
+	cmp     word ptr [bx], 0
+	jz      int08_nodec
+	dec     word ptr [bx]
+int08_nodec:
+	push    ax
+	mov     al, 20h
+	out     20h, al
+	pop     ax
         mov     bx, 6ch
         add     word ptr [bx], 1
         adc     word ptr [bx+2], 0
@@ -820,10 +828,12 @@ SF1:
         mov     KbdFlags3, cx
         
 int09Exit:
-        pop     es
-        pop     ds
-        popa
-        iret
+	mov     al, 20h
+	out     20h, al
+	pop     es
+	pop     ds
+	popa
+	iret
 int09 endp
 
 ELSE    ; SCANCODE2
@@ -1103,6 +1113,8 @@ SF1:
         mov     KbdFlags3, cx
         
 int09Exit:
+	mov     al, 20h
+	out     20h, al
         pop     es
         pop     ds
         popa
@@ -2666,13 +2678,12 @@ exit2:
         xor     byte ptr HDOpStarted, 8
         neg     ah              ; CF <- (AH != 0)
 exit77:
-        mov     bp, sp
-        rcr     byte ptr [bp+8], 1
-        rol     byte ptr [bp+8], 1  ; insert error CF on stack
+        pushf           ; preserve carry
         neg     ah
+        popf            ; restore carry
         pop     bp
         pop     ds
-        iret
+        retf    0002h
 
 disktbl dw      DiskReset, DiskGetStatus, DiskRead, DiskWrite, DiskVerify, DiskFormat, DiskFormat, DiskFormat, DiskGetParams, DiskInit, DiskRead, DiskWrite, DiskSeek, DiskRst, DiskReadSectBuffer, DiskWriteSectBuffer
         dw      DiskReady, DiskRecalibrate, DiskDiag, DiskDiag, DiskDiag, DiskGetType, DiskChanged, DiskSetDASDType, DiskSetMediaType, DiskPark, DiskFormat,  DiskExtInstCheck, DiskExtRead, DiskExtWrite, DiskExtVerify, DiskExtLock
@@ -3118,9 +3129,9 @@ errexit:
         stc                 ; error
 exitok:        
         pushf               ; save CF
-        in      al, 21h
-        and     al, not 10h     
-        out     21h, al     ; enable mouse interrupts
+	push    ax
+	call    enablemouseinterrupt
+	pop     ax
         call    enableKbIfPresent
         popf
         pop     dx
@@ -3131,10 +3142,9 @@ mouse_present:
         mov     ah, 1       ; invalid function
         cmp     al, 7
         ja      short errexit
-        push    ax
-        in      al, 21h
-        or      al, 10h     
-        out     21h, al     ; disable mouse interrupts
+	push    ax
+
+	call    disablemouseinterrupt
         sti                 ; allow interrupts for a short time, to flush possible pending KB/mouse requests
         mov     al, 0adh
         out     64h, al     ; disable kb interface
@@ -3250,6 +3260,28 @@ setscaling:
         mov     ah, 0e5h    ; set scaling 1:1 or 2:1
         add     ah, bh
         jmp     short send1c
+enablemouseinterrupt:
+	mov     al, 20h
+	out     064h, al
+	in      al, 060h    ; read 8042 config byte
+	or      al, 02h     ; set enable mouse interrupt
+	mov     ah, al
+	mov     al, 60h
+	out     064h, al
+	mov     al, ah
+	out     060h, al    ; send 8042 config byte
+	ret
+disablemouseinterrupt:
+	mov     al, 20h
+	out     064h, al
+	in      al, 060h    ; read 8042 config byte
+	and     al, 0fdh     ; set disable mouse interrupt
+	mov     ah, al
+	mov     al, 60h
+	out     064h, al
+	mov     al, ah
+	out     060h, al    ; send 8042 config byte
+	ret
 
 sample_tbl  db  10, 20, 40, 60, 80, 100, 200
 SysParams   db  8, 0, 0fch, 0, 0
@@ -3550,7 +3582,7 @@ int70 proc near
         push    40h
         pop     ds
         test    byte ptr UWaitFlag, 1    ; is wait in progress?
-        jz      short exit44
+		jz      short exit111
         sub     word ptr WaitCount[0], 1000
         sbb     word ptr WaitCount[2], 0
         jnc     short exit44
@@ -3559,7 +3591,18 @@ int70 proc near
         lds     bx, UFPtr
         or      byte ptr [bx], 80h
         pop     bx
+exit111:
+	push	ax
+	xor	ax, ax
+	out	70h, ax	; stop RTC
+	pop	ax
 exit44: 
+	push    ax
+	mov     al, 20h
+	out     0a0h, al
+	mov     al, 20h
+	out     20h, al
+	pop     ax
         pop     ds
         iret
 int70 endp
@@ -3604,6 +3647,10 @@ docall:
         add     sp, 8
         pop     es
 nocall:        
+	mov     al, 20h
+	out     0a0h, al
+	mov     al, 20h
+	out     20h, al
         pop     ds
         popa
         iret
@@ -4519,6 +4566,6 @@ gfx_font:
         
         db      0eah        
         dw      coldboot, 0f000h
-        db      '21/12/17'
+        db      '22/01/09'
         db      0ffh, 0ffh, 0
 end bios

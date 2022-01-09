@@ -67,11 +67,15 @@ module KB_Mouse_8042(
 	 inout PS2_CLK2,
 	 inout PS2_DATA1,
 	 inout PS2_DATA2,
-	 output reg [1:0] monochrome_switcher
+	 output reg [1:0] monochrome_switcher,
+	 output reg [1:0] cpu_speed_switcher,
+	 output reg nmi_button
     );
 	 
 	 initial begin
         monochrome_switcher = 2'b0;
+		  nmi_button = 1'b0;
+		  cpu_speed_switcher = 2'd2;
     end
 	 
 //	status bit5 = MOBF (mouse to host buffer full - with OBF), bit4=INH, bit2(1-initialized ok), bit1(IBF-input buffer full - host to kb/mouse), bit0(OBF-output buffer full - kb/mouse to host)
@@ -89,6 +93,8 @@ module KB_Mouse_8042(
 	reg OBF = 0;
 	reg MOBF = 0;
 	reg [7:0]s_data;
+	reg ctrl_pressed = 0;
+	reg alt_pressed = 0;
 
 	wire [7:0]kb_data;	
 	wire [7:0]mouse_data;
@@ -150,10 +156,30 @@ module KB_Mouse_8042(
 		
 		if(~OBF & ~MOBF)
 			if(kb_data_out_ready & ~rd_kb & ~cmdbyte[2]) begin
-				OBF <= 1'b1;				
-				if (kb_data == 8'hc6 && s_data != 8'he0) begin // Se ha soltado la tecla Bloq Despl
-					monochrome_switcher <= monochrome_switcher + 1; // MonochromeRGB
-				end
+				OBF <= 1'b1;			
+				
+				if (kb_data == 8'h1d && s_data != 8'he0) ctrl_pressed = 1'b1;
+				if (kb_data == 8'h9d && s_data != 8'he0) ctrl_pressed = 1'b0;
+				
+				if (kb_data == 8'h38 && s_data != 8'he0) alt_pressed = 1'b1;
+				if (kb_data == 8'hb8 && s_data != 8'he0) alt_pressed = 1'b0;
+				
+				// CTRL + ALT + F12
+				if (kb_data == 8'hd8 && s_data != 8'he0 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
+					nmi_button <= ~nmi_button;	// NMI
+
+				// CTRL + ALT + Bloq Despl
+				if (kb_data == 8'hc6 && s_data != 8'he0 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
+					monochrome_switcher <= monochrome_switcher + 1; // MonochromeRGB				
+				
+				// CTRL + ALT + KeyPad -
+				if (kb_data == 8'hca && s_data != 8'he0 && cpu_speed_switcher != 2'd2 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
+					cpu_speed_switcher <= cpu_speed_switcher + 2'd1; // CPU Speed --
+								
+				// CTRL + ALT + KeyPad +
+				if (kb_data == 8'hce && s_data != 8'he0 && cpu_speed_switcher != 2'd0 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1) 
+					cpu_speed_switcher <= cpu_speed_switcher - 2'd1; // CPU Speed ++
+				
 				s_data <= kb_data;				
 			end else if(mouse_data_out_ready & ~rd_mouse & ~cmdbyte[3]) begin
 				MOBF <= 1'b1;

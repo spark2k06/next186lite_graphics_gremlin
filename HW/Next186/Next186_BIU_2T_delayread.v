@@ -101,7 +101,9 @@ module BIU186_32bSync_2T_DelayRead(
 	output reg data_bound,
 	input [1:0]WSEL,	// normally {~ADDR[0], ADDR[0]}
 	output reg RAM_RD,
-	output reg RAM_WR
+	output reg RAM_WR,
+	input IORQ,
+	input FASTIO
 );
 
 	reg [31:0]queue[3:0];
@@ -173,7 +175,8 @@ module BIU186_32bSync_2T_DelayRead(
 						end	
 					end else begin
 						iread = qnofull;
-						CE186 = 1;
+						if(IORQ && !WR && !FASTIO) NEXTSTATE = 3;
+						else CE186 = 1;
 					end
 				end else iread = 1; // else nextstate = 1
 			end
