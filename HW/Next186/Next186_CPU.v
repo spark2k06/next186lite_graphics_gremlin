@@ -180,6 +180,7 @@ module Next186_CPU(
 	wire [2:0]ISIZES = DISP16 ? 4 : AEXT ? 3 : 2;
 	reg  [2:0]ISIZEW;
 	reg  [2:0]ISIZEI;	// ise imm
+	reg  PUSH_SP;
 	wire [1:0]WRBIT = WR ? 2'b00 : WBIT;
 	wire RCXZ = CPUStatus[4] && ~|CXZ;
 	wire NRORCXLE1 = ~CPUStatus[4] || ~CXZ[1];
@@ -243,7 +244,7 @@ module Next186_CPU(
 
 	Next186_ALU ALU16 (
 	 .RA(DOSEL == 2'b01 ? IPADD : RA), 
-	 .RB(RB),
+	 .RB(PUSH_SP ? RB - 2 : RB), // Same behavior as an 8086/80186 with PUSH SP
 	 .TMP16(TMP16),
 	 .FETCH23({FETCH[3], FETCH[2]}),
 	 .FIN(FLAGS), 
@@ -398,6 +399,7 @@ module Next186_CPU(
 		DIVOP = 1'b0;
 		
 		FFLUSH_REQ = 0;
+		PUSH_SP = 1'b0;
 				
 		case(ICODE1) // one hot synthesis
 // --------------------------------  mov R/M to/from R/SR  --------------------------------
@@ -598,6 +600,7 @@ module Next186_CPU(
 				ALUOP = 31;				// PASS B
 				WR = 1'b1;
 				ISIZE = 1;
+				PUSH_SP = (FETCH[0][6] && (FETCH[0][2:0] == 3'b100)) ? 1 : 0;
 			end
 // --------------------------------  push Imm --------------------------------
 			9: begin		

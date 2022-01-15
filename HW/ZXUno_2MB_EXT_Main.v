@@ -32,19 +32,15 @@ module ZXUno_Next186lite_2MB_EXT
 	);
 	
 	wire [5:0] r, g, b;	
-	wire VGA_HSYNC, VGA_VSYNC;
 	reg [5:0] raux, gaux, baux;
 	wire [1:0] monochrome_switcher;
-	wire [1:0] cpu_speed_switcher;
-		
+			
 	wire clk_28_571;
 	wire clk_25;
 	wire clk_19_048;	
 	wire clk_9_524;
-	wire clk_4_762;
+	wire clk_4_762;	
 		
-	reg [2:0] div_clk_19_048 = 3'd0;
-	reg ce_opl2 = 0;
 	reg [5:0]red_weight[0:63] = { // 0.2126*R
 	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04,
 	6'h04, 6'h04, 6'h04, 6'h05, 6'h05, 6'h05, 6'h05, 6'h05, 6'h06, 6'h06, 6'h06, 6'h06, 6'h06, 6'h07, 6'h07, 6'h07,
@@ -78,13 +74,12 @@ module ZXUno_Next186lite_2MB_EXT
     );
    
 	system_2MB sys_inst
-	(
+	(	
 		.clk_vga(clk_28_571),
-		.clk_cpu(div_clk_19_048[cpu_speed_switcher]), 
-		.clk_kb(div_clk_19_048[0]),
+		.clk_cpu_base(clk_19_048),		
+		.clk_kb(clk_9_524),
 		.clk_sdr(clk_4_762),
-		.clk_sram(clk_9_524),
-		.ce_opl2(ce_opl2),
+		.clk_sram(clk_9_524),		
 		.clk_25(clk_25),
 		
 		.VGA_R(r),
@@ -94,7 +89,7 @@ module ZXUno_Next186lite_2MB_EXT
 		.VGA_VSYNC(VGA_VSYNC),
 		.SRAM_ADDR(SRAM_A),
 		.SRAM_DATA(SRAM_D),
-		.SRAM_WE_n(SRAM_WE_n),
+		.SRAM_WE_n(SRAM_WE_n),		
 		.LED(LED),
 		.SD_n_CS(SD_nCS),
 		.SD_DI(SD_DI),
@@ -106,17 +101,9 @@ module ZXUno_Next186lite_2MB_EXT
 		.PS2_CLK2(PS2CLKB),
 		.PS2_DATA1(PS2DATA),
 		.PS2_DATA2(PS2DATB),
-		.monochrome_switcher(monochrome_switcher),
-		.cpu_speed_switcher(cpu_speed_switcher)
+		.monochrome_switcher(monochrome_switcher)
+		
 	);
-
-	always @ (posedge clk_19_048) begin
-		div_clk_19_048 <= div_clk_19_048 + 3'd1;
-	end
-	
-	always @ (posedge clk_4_762) begin
-		ce_opl2 <= ~ce_opl2;
-	end
 	
 	always @ (monochrome_switcher, r, g, b) begin
 		case(monochrome_switcher)

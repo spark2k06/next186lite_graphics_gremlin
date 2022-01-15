@@ -162,7 +162,7 @@ SCANCODE1   equ 1
     
         org 0e000h        
 bios:        
-biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.01.09]', 0
+biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.01.15]', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
         
@@ -290,6 +290,8 @@ bios2mb_2:
         int     10h
 
  ; ------------------- KB init ----------------
+        mov     al, 1
+        out     97h, al     ; cpu_speed max
         mov     al, 0aeh
         out     64h, al     ; enable kb
         mov     al, 0a7h
@@ -384,6 +386,8 @@ mouseok:
 		inc		ax
 		out		1, ax		; enable auto flush on vblank
         sti                 ; enable CPU interrupts
+        mov     al, 0
+        out     97h, al      ; cpu_speed setted
 
 ; ---------------------   HDD init
         call    sdinit
@@ -4566,6 +4570,6 @@ gfx_font:
         
         db      0eah        
         dw      coldboot, 0f000h
-        db      '22/01/09'
+        db      '22/01/15'
         db      0ffh, 0ffh, 0
 end bios

@@ -129,11 +129,10 @@
 module system_2MB
 	(		 	 
 		 input clk_vga,
-		 input clk_cpu,
+		 input clk_cpu_base,		 
 		 input clk_kb,
 		 input clk_sdr,
-		 input clk_sram,
-		 input ce_opl2,
+		 input clk_sram,		 
 		 input clk_25,
 		 output [20:0]SRAM_ADDR,
 		 inout [7:0]SRAM_DATA,
@@ -154,9 +153,8 @@ module system_2MB
 		 inout PS2_CLK2,
 		 inout PS2_DATA1,
 		 inout PS2_DATA2,
-		 output wire [1:0] monochrome_switcher,
-		 output wire [1:0] cpu_speed_switcher
-		 
+		 output wire [1:0] monochrome_switcher
+		 		 
     );
 		 
 	wire [15:0]sys_DIN;
@@ -188,6 +186,7 @@ module system_2MB
 	wire TIMER_OE = PORT_ADDR[15:2] == 14'b00000000010000;	//   40h..43h	
 	wire LED_PORT = PORT_ADDR[15:0] == 16'h03bc;
 	wire SPEAKER_PORT = PORT_ADDR[15:0] == 16'h0061;
+	wire CPU_SPEED_OE = PORT_ADDR[15:0] == 12'h0097;	
 	wire MEMORY_SIZE = PORT_ADDR[15:0] == 16'h0098;	
 	wire MEMORY_MAP = PORT_ADDR[15:4] == 12'h008;	
 	wire RS232_OE = PORT_ADDR[15:0] == 16'h0001;
@@ -208,6 +207,10 @@ module system_2MB
 	
 	wire HALT;
 	wire nmi_button;
+		
+	wire [1:0] cpu_speed;
+	wire [1:0] cpu_speed_switcher;
+	reg cpu_speed_max = 0;
 		
 	reg [1:0]command = 0;
 	reg [1:0]s_ddr_rd = 0;
@@ -233,18 +236,26 @@ module system_2MB
 	reg [1:0] speaker_on = 0;
 	reg [9:0]rNMI = 0;
 	
+	reg [2:0] div_clk_cpu = 3'd0;
 	reg [18:0]sysaddr;
 	reg [2:0]auto_flush = 3'b000;
+	wire clk_cpu;
+	
 
+	assign cpu_speed = cpu_speed_max ? 2'b0 : cpu_speed_switcher;
+	assign clk_cpu = div_clk_cpu[cpu_speed];
+	
 	assign LED = ~SD_n_CS;
 	//reg test_led = 0;
-	//assign LED = test_led;	
+	//assign LED = test_led;		
 		
 // NMI on IORQ
 	reg [15:0]NMIonIORQ_LO = 16'h0001;
 	reg [15:0]NMIonIORQ_HI = 16'h0000;
 	
-// Adlib interface (JTOPL2)
+// Adlib interface (JTOPL2)	
+	reg ce_opl2 = 1'b0;
+	reg [7:0] opl2_cen_cnt = 8'd0;
    wire [7:0]opl2data;	
    wire [15:0]opl2snd;
 	reg [31:0]sndval = 0;
@@ -390,11 +401,19 @@ module system_2MB
 
 	);
 	
+	always @ (posedge clk_cpu_base)
+		div_clk_cpu <= div_clk_cpu + 3'd1;	
+
+  always @(posedge clk_vga) begin
+		sndval <= sndval - sndval[31:7] + (sndsign << 25);				
+		opl2_cen_cnt <= opl2_cen_cnt + 8'd1;
+		if(opl2_cen_cnt >= 8'd7)
+			opl2_cen_cnt  <= 8'd0; // 3.571375 MHz
+		ce_opl2 <= (opl2_cen_cnt < 8'd4) ? 1'b1 : 1'b0;	
+  end
 
   
   always @(posedge clk_25) begin
-  	  	sndval <= sndval - sndval[31:7] + (sndsign << 25);				
-		
 		if(RTCDIVEND) RTCDIV25 <= 0;	// real time clock
 		else RTCDIV25 <= RTCDIV25 + 1;  
 				
@@ -525,7 +544,7 @@ module system_2MB
 	
 	jtopl2 opl2 (
 		.rst(!rstcount[4]),
-		.clk(clk_cpu), 
+		.clk(div_clk_cpu[2'd0]), 
 		.cen(ce_opl2),
 		.din(CPU_DOUT[7:0]),
 		.dout(opl2data),
@@ -554,11 +573,15 @@ module system_2MB
 		end		
 		
 
+
 //LED
 	
 //	if(IORQ && CPU_CE && WR && LED_PORT)
 //		test_led <= CPU_DOUT[0];
-	
+
+// CPU SPEED
+		if(IORQ && CPU_CE && WR && ~WORD && CPU_SPEED_OE)
+			cpu_speed_max <= CPU_DOUT[0];
 
 // SD
 		if(CPU_CE) begin

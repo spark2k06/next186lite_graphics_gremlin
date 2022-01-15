@@ -29,6 +29,12 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 # Historial de cambios
 
+### ZXUno PCXT CGA (Beta 0.5)
+
+* Corrección de timings de instanciado del modulo de JTOPL2
+* Corrección de timings de instanciado del modulo de teclado, ya se vuelven a detectar todos los teclados.
+* Mismo comportamiento que un 8086/80186 con PUSH SP, correcta identificación del modelo de CPU por parte de los programas.
+
 ### ZXUno PCXT CGA (Beta 0.4)
 
 * Muchas correcciones, a nivel de timer, pc speaker, cpu, etc... gracias al fork de VGA para Mist de gyurco
