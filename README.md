@@ -22,10 +22,14 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 ### TODO
 
 * Depuración de software y juegos para la mejora continua de la BIOS y el core.
-* Eliminación completa de la cache utilizada por el Next186.
 * Integración del módulo de video compuesto del proyecto Graphics Gremlin de @schlae.
 * Revisar por qué la señal de VGA generada por el módulo de la Graphics Gremlin no funciona en algunos monitores. Ejemplo: FLATRON M1917A
 * Mejora y corrección continua de otros fallos.
+
+### Tareas descartadas
+
+* Eliminación completa de la cache utilizada por el Next186.
+(La implementación de la caché y la BIU en el Next186 son excesivamente complejas, cualquier intento de manipulación resulta infructuosa, desestabilizando todo el sistema)
 
 # Historial de cambios
 
