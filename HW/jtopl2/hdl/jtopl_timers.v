@@ -96,7 +96,9 @@ always@(posedge clk)
 
 always @(*) begin
     {free_ov, free_next} = { 1'b0, free_cnt} + 1'b1;
+/* verilator lint_off WIDTH */
     {overflow, next } = {1'b0, cnt}+free_ov;
+/* verilator lint_on WIDTH */
     init = start_value;
 end
 
@@ -104,7 +106,7 @@ always @(posedge clk) begin
     load_l <= load;
     if( (!load_l && load) || rst) begin
         cnt <= start_value;
-    end else if( cenop && zero ) begin
+    end else if( cenop && zero && load ) begin
         cnt <= overflow ? init : next;
     end
 end

@@ -33,6 +33,18 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 # Historial de cambios
 
+### ZXUno PCXT CGA (Release 1)
+
+Versión estable y cierre del primer ciclo de desarrollo. Al no ser sencilla la eliminación de la cache por importante dependencia con el funcionamiento del Next186, en el futuro se valorará la posibilidad de sustituirlo por el proyecto MCL86 de @MicroCoreLabs, con idea de lograr un core de ciclo exacto con un 8088, y opción a modos de funcionamiento turbo opcionales.
+
+Se han llevado a cabo las siguientes mejoras y correcciones:
+
+* Corrección de fallo de teclado al reiniciar con CTRL + ALT + DEL
+* 80186 a 12Mhz por defecto, en lugar de 4.77Mhz
+* Opción Throttle Down con CTRL + ALT + [-], para volver al modo normal CTRL + ALT + [+]... útil para juegos antiguos que funcionan muy rápido. Al reinicio vuelve al modo normal automáticamente.
+
+A partir de este momento sólo se actualizará el core para trasladar mejoras de proyectos en los que está basado, si hubiesen novedades destacables: Graphics Gremlin o JTOPL2
+
 ### ZXUno PCXT CGA (Beta 0.5)
 
 * Corrección de timings de instanciado del modulo de JTOPL2

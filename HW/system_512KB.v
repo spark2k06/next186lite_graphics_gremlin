@@ -130,7 +130,6 @@ module system_512KB
 	(
 		 input clk_vga,
 		 input clk_cpu_base,		 
-		 input clk_kb,
 		 input clk_sdr,
 		 input clk_sram,		 
 		 input clk_25,
@@ -207,10 +206,9 @@ module system_512KB
 	
 	wire HALT;
 	wire nmi_button;
-		
-	wire [1:0] cpu_speed;
-	wire [1:0] cpu_speed_switcher;
-	reg cpu_speed_max = 0;
+	
+	reg [1:0] cpu_speed_io = 2'b1;	
+	wire [1:0] cpu_speed_switcher;	
 		
 	reg [1:0]command = 0;
 	reg [1:0]s_ddr_rd = 0;
@@ -239,14 +237,12 @@ module system_512KB
 	reg [17:0]sysaddr;
 	reg [2:0]auto_flush = 3'b000;
 	wire clk_cpu;
-	
-
-	assign cpu_speed = cpu_speed_max ? 2'b0 : cpu_speed_switcher;
-	assign clk_cpu = div_clk_cpu[cpu_speed];
+		
+	assign clk_cpu = div_clk_cpu[cpu_speed_switcher];
 	
 	assign LED = ~SD_n_CS;
 	//reg test_led = 0;
-	//assign LED = test_led;	
+	//assign LED = test_led;		
 		
 // NMI on IORQ
 	reg [15:0]NMIonIORQ_LO = 16'h0001;
@@ -272,7 +268,7 @@ module system_512KB
 
 
 	assign PORT_IN[7:0] = 							 							 
-							 ({8{KB_OE}} & KB_DOUT) |							 
+							 ({8{KB_OE}} & KB_DOUT) |
 							 ({8{SD_OE}} & {8'b1x000000}) |
 							 ({8{SPEAKER_PORT}} & {6'd0, speaker_on}) |
 							 ({8{CRTC_OE}} & CRTC_DOUT) |
@@ -400,6 +396,7 @@ module system_512KB
 
 	);
 	
+	
 	always @ (posedge clk_cpu_base)
 		div_clk_cpu <= div_clk_cpu + 3'd1;	
 
@@ -452,7 +449,7 @@ module system_512KB
 		 .cmd(PORT_ADDR[2]), // 64h
 		 .din(CPU_DOUT[7:0]), 
 		 .dout(KB_DOUT), 
-		 .clk(clk_kb),
+		 .clk(div_clk_cpu[0]),
 		 .I_KB(I_KB), 
 		 .I_MOUSE(I_MOUSE), 
 		 .CPU_RST(KB_RST), 
@@ -462,7 +459,10 @@ module system_512KB
 		 .PS2_DATA2(PS2_DATA2),
 		 .monochrome_switcher(monochrome_switcher),
 		 .cpu_speed_switcher(cpu_speed_switcher),
-		 .nmi_button(nmi_button)
+		 .nmi_button(nmi_button),
+		 .cpu_speed_io(IORQ && CPU_CE && WR && ~WORD && CPU_SPEED_OE),
+		 .cpu_speed(CPU_DOUT[1:0])
+		 
 	);
 	
 	wire [7:0]PIC_IVECT;
@@ -509,7 +509,7 @@ module system_512KB
 		 .IORQ(IORQ),
 		 .WR(WR),
 		 .WORD(WORD),
-		 .FASTIO(1'b0) // 1'b1 en Mist
+		 .FASTIO(1'b1)
 	);
 	
 	seg_map_512KB seg_mapper 
@@ -541,7 +541,7 @@ module system_512KB
 	
 	jtopl2 opl2 (
 		.rst(!rstcount[4]),
-		.clk(div_clk_cpu[2'd0]), 
+		.clk(div_clk_cpu[1]),
 		.cen(ce_opl2),
 		.din(CPU_DOUT[7:0]),
 		.dout(opl2data),
@@ -567,16 +567,14 @@ module system_512KB
 		s_cache_mreq <= CACHE_MREQ;		
 		if(IORQ & CPU_CE) begin
 			if(WR & SPEAKER_PORT) speaker_on <= CPU_DOUT[1:0];
-		end
+		end		
+		
+
 
 //LED
 	
 //	if(IORQ && CPU_CE && WR && LED_PORT)
 //		test_led <= CPU_DOUT[0];
-
-// CPU SPEED
-		if(IORQ && CPU_CE && WR && ~WORD && CPU_SPEED_OE)
-			cpu_speed_max <= CPU_DOUT[0];
 
 // SD
 		if(CPU_CE) begin

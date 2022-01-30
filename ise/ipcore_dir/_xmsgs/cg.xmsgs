@@ -8,23 +8,5 @@
 <msg type="info" file="sim" num="172" delta="old" >Generating IP...
 </msg>
 
-<msg type="warning" file="sim" num="0" delta="new" ><arg fmt="%s" index="1">A core named &apos;BRAM_8KB_BIOS&apos; already exists in the project. Output products for this core may be overwritten.</arg>
-</msg>
-
-<msg type="warning" file="sim" num="0" delta="new" ><arg fmt="%s" index="1">A core named &apos;BRAM_8KB_BIOS&apos; already exists in the project. Output products for this core may be overwritten.</arg>
-</msg>
-
-<msg type="info" file="sim" num="0" delta="new" ><arg fmt="%s" index="1">Pre-processing HDL files for &apos;BRAM_8KB_BIOS&apos;...</arg>
-</msg>
-
-<msg type="warning" file="sim" num="0" delta="new" ><arg fmt="%s" index="1">Overwriting existing file C:/FPGA/PCXT/next186lite_graphics_gremlin-main/ise/ipcore_dir/tmp/_cg/BRAM_8KB_BIOS/doc/blk_mem_gen_v7_3_vinfo.html with file from view xilinx_documentation</arg>
-</msg>
-
-<msg type="info" file="sim" num="949" delta="new" >Finished generation of ASY schematic symbol.
-</msg>
-
-<msg type="info" file="sim" num="948" delta="new" >Finished FLIST file generation.
-</msg>
-
 </messages>
 

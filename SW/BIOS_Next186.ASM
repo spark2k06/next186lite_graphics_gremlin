@@ -162,7 +162,7 @@ SCANCODE1   equ 1
     
         org 0e000h        
 bios:        
-biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.01.15]', 0
+biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.01.30]', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
         
@@ -207,7 +207,8 @@ start:
         in      al, 98h               
         cmp     al, 2
         jz      bios2mb
-        mov     word ptr [ramsize], 0008h
+        mov     word ptr cs:[ramsize], 0008h        
+        
 bios2mb:        
         cli
         cld
@@ -288,82 +289,26 @@ bios2mb_2:
  ; ------------------- Graph mode init
         mov     ax, 3
         int     10h
-
- ; ------------------- KB init ----------------
-        mov     al, 1
-        out     97h, al     ; cpu_speed max
+        
+        mov     al, 0
+        out     97h, al     ; cpu_speed max        
+        
+        cmp     byte ptr cs:[kbbios], 01h
+        jz      short no_initkb
+        
         mov     al, 0aeh
         out     64h, al     ; enable kb
         mov     al, 0a7h
         out     64h, al     ; disable mouse
-        mov     cx, 25
-kbi1:       
-        call    getps2byte
-        loop    short kbi1  ; wait for kb timeout
-        mov     ah, 0ffh    ; reset kb
-        clc                 ; kb command
-        call    sendcmd   
-        jc      short nokb
-        mov     cl, 25
-kbi2:        
-        dec     cx
-        jcxz    short nokb
-        call    getps2byte
-        jc      short kbi2  ; wait for BAT
-        cmp     al, 0aah
-        jne     short nokb
-        mov     ah, 0f2h    ; kb id
-        call    sendcmd     ; CF = 0
-        jc      short nokb
-        call    getps2byte
-        cmp     al, 0abh
-        jne     short nokb
-        call    getps2byte
-        cmp     al, 83h
-; set scan code 1
-IFDEF SCANCODE1
-        jne     short nokb
-        mov     ah, 0f0h    ; kb scan set
-        call    sendcmd   
-        jc      short nokb
-        mov     ah, 1       ; scan set 1
-        call    sendcmd   
-        jnc     short kbok
-ELSE
-        je     short kbok
-ENDIF        
-
-nokb:   
-        mov     byte ptr KbdFlags3, 0   ; kb not present
-kbok:
+        call    KbInit
+no_initkb:
+        
         mov     al, 0adh
         out     64h, al      ; disable kb interface
-
-; ------------------- Mouse init ----------------
         mov     al, 0a8h
-        out     64h, al      ; enable mouse
-mousei0:        
-        call    getps2byte
-        jnc     short mousei0
-        mov     ah, 0ffh
-        call    sendcmd      ; reset mouse (CF = 1)
-        jc      short nomouse
-        mov     cl, 25
-mousei1:        
-        dec     cx
-        jcxz    short nomouse
-        call    getps2byte
-        jc      short mousei1
-        cmp     al, 0aah     ; BAT
-        jne     short nomouse
-        call    getps2byte
-        cmp     al, 0        ; mouse ID
-        je      short mouseok
-nomouse:
-        mov     al, 0a7h        
-        out     64h, al      ; disable mouse
-        and     byte ptr EquipmentWord, not 4 ; ps2 mouse not present in equipement word
-mouseok:
+        out     64h, al     ; enable mouse
+        call    MouseInit
+
         call    enableKbIfPresent
 
         mov     al, 20h
@@ -386,7 +331,8 @@ mouseok:
 		inc		ax
 		out		1, ax		; enable auto flush on vblank
         sti                 ; enable CPU interrupts
-        mov     al, 0
+        
+        mov     al, 1
         out     97h, al      ; cpu_speed setted
 
 ; ---------------------   HDD init
@@ -430,8 +376,8 @@ nomousemsg:
 msgmouse    db 'PS2 Mouse detected', 13, 10, 0
 bioscont    db 13, 10, 'ZX-UNO port by DistWave', 13, 10
             db 'Graphics Gremlin Integration by @spark2k06', 13, 10, 13, 10
-            db 'CPU: 80186 4.77Mhz', 13, 10
-            db 'Graphics: CGA/Tandy', 13,10
+            db 'CPU: 80186 @ 12Mhz. Throttle down option: CTRL + ALT + [-/+]', 13, 10            
+            db 'Graphics: CGA/Tandy. MonochromeRGB option: CTRL + ALT + ScrLock', 13,10            
             db 'Sound: Adlib (JTOPL2) and PC Speaker', 0
                         
 bioscont512 db 13, 10, 'RAM: 512KB SRAM 8-bit', 13, 10
@@ -2427,7 +2373,7 @@ delay_15us:
 	push	cx
 .delay1:
 	; mov	al,4	; With real PCXT at 4.77Mhz
-	mov	al,24	; With Next186 at 4.77Mhz
+	mov	al,10   	; With Next186 at 12Mhz
 .delay2:
 	dec	al
 	jnz	.delay2
@@ -3748,12 +3694,83 @@ exit66:
         ret
 sendcmd endp
 
+MouseInit:
+; ------------------- Mouse init ----------------
+mousei0:        
+        call    getps2byte
+        jnc     short mousei0
+        mov     ah, 0ffh
+        call    sendcmd      ; reset mouse (CF = 1)
+        jc      short nomouse
+        mov     cl, 25
+mousei1:        
+        dec     cx
+        jcxz    short nomouse
+        call    getps2byte
+        jc      short mousei1
+        cmp     al, 0aah     ; BAT
+        jne     short nomouse
+        call    getps2byte
+        cmp     al, 0        ; mouse ID
+        je      short mouseok
+nomouse:
+        mov     al, 0a7h        
+        out     64h, al      ; disable mouse
+        and     byte ptr EquipmentWord, not 4 ; ps2 mouse not present in equipement word
+mouseok:
+        ret
+
+KbInit:
+; ------------------- KB init ---------------- 
+        mov     cx, 25
+kbi1:       
+        call    getps2byte
+        loop    short kbi1  ; wait for kb timeout
+        mov     ah, 0ffh    ; reset kb
+        clc                 ; kb command
+        call    sendcmd   
+        jc      short nokb
+        mov     cl, 25
+kbi2:        
+        dec     cx
+        jcxz    short nokb
+        call    getps2byte
+        jc      short kbi2  ; wait for BAT
+        cmp     al, 0aah
+        jne     short nokb
+        mov     ah, 0f2h    ; kb id
+        call    sendcmd     ; CF = 0
+        jc      short nokb
+        call    getps2byte
+        cmp     al, 0abh
+        jne     short nokb
+        call    getps2byte
+        cmp     al, 83h
+; set scan code 1
+IFDEF SCANCODE1
+        jne     short nokb
+        mov     ah, 0f0h    ; kb scan set
+        call    sendcmd   
+        jc      short nokb
+        mov     ah, 1       ; scan set 1
+        call    sendcmd   
+        jnc     short kbok
+ELSE
+        je     short kbok
+ENDIF        
+
+nokb:   
+        mov     byte ptr KbdFlags3, 0   ; kb not present
+kbok:
+        ret
+
 enableKbIfPresent proc near ; input DS = 40h
 ; modify AL, flags
         test    byte ptr KbdFlags3, 10h
         jz      short noenablekb
         mov     al, 0aeh
         out     64h, al     ; enable kb interface
+        mov     byte ptr cs:[kbbios], 01h
 noenablekb:        
         ret
 enableKbIfPresent endp
@@ -4425,6 +4442,7 @@ MODES	db	2Ch,28h,2Dh,29h,2Ah,2Eh,1Eh,29h ; Table of mode sets
 TABMUL	db	00h,00h,10h,10h,20h,20h,20h,30h ; Table lookup for multiply
 
 ramsize dw  0010h                           ; Default BIOS 2MB
+kbbios  db  00h                             ; KB already initialized from BIOS
 sdtype  db  00h                             ; 00h -> SD, 01h -> SDHC
 
 gfx_font:
@@ -4570,6 +4588,6 @@ gfx_font:
         
         db      0eah        
         dw      coldboot, 0f000h
-        db      '22/01/15'
+        db      '22/01/30'
         db      0ffh, 0ffh, 0
 end bios

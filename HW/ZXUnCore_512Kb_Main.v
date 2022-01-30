@@ -35,11 +35,11 @@ module ZXUnCore_Next186lite_512KB
 	reg [5:0] raux, gaux, baux;
 	wire [1:0] monochrome_switcher;
 			
-	wire clk_28_571;
+	wire clk_28_636;
 	wire clk_25;
-	wire clk_19_048;	
-	wire clk_9_524;
-	wire clk_4_762;	
+	wire clk_14_318;
+	wire clk_7_169;
+	wire clk_4_772;
 		
 	reg [5:0]red_weight[0:63] = { // 0.2126*R
 	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04,
@@ -65,21 +65,20 @@ module ZXUnCore_Next186lite_512KB
 	dcm dcm_system 
 	(
 		.CLK_IN1(CLK_50MHZ), 
-		.CLK_OUT1(clk_28_571),
+		.CLK_OUT1(clk_28_636),
 		.CLK_OUT2(clk_25),
-		.CLK_OUT3(clk_19_048),
-		.CLK_OUT4(clk_9_524),
-		.CLK_OUT5(clk_4_762)		
+		.CLK_OUT3(clk_14_318),
+		.CLK_OUT4(clk_7_169),
+		.CLK_OUT5(clk_4_772)
 		
     );
    
 	system_512KB sys_inst
 	(
-		.clk_vga(clk_28_571),
-		.clk_cpu_base(clk_19_048),		
-		.clk_kb(clk_9_524),
-		.clk_sdr(clk_4_762),
-		.clk_sram(clk_9_524),		
+		.clk_vga(clk_28_636),
+		.clk_cpu_base(clk_14_318),
+		.clk_sdr(clk_14_318), 
+		.clk_sram(clk_28_636), 
 		.clk_25(clk_25),
 		
 		.VGA_R(r),

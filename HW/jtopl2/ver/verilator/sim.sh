@@ -99,8 +99,9 @@ if [[ "$GYM_FILE" = "" ]]; then
 fi
 
 echo EXTRA="$EXTRA"
+echo GYM_FILE="$GYM_FILE"
 
-if [[ $(expr match "$GYM_FILE" ".*\.vgz") != 0 ]]; then
+if [[ $(expr "$GYM_FILE" : ".*\.vgz$") != 0 ]]; then
     echo Uncompressing vgz file...
     UNZIP_GYM=$(basename "$GYM_FILE" .vgz).vgm
     if [ -e /tmp ]; then
@@ -128,7 +129,7 @@ fi
 
 if [ $SKIPMAKE = FALSE ]; then
     if ! verilator --cc -f $GATHER --top-module $TOP \
-        -I../../hdl --trace -DTEST_SUPPORT $MACROS \
+        -I../../hdl --trace -DTEST_SUPPORT $MACROS -DSIMULATION \
         $VERI_EXTRA $FAST --exe test.cpp VGMParser.cpp WaveWritter.cpp; then
         exit $?
     fi

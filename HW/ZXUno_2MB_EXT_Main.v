@@ -2,44 +2,45 @@
 
 module ZXUno_Next186lite_2MB_EXT
 	(
-		input  CLK_50MHZ,
-		output [2:0]VGA_R,
-		output [2:0]VGA_G,
-		output [2:0]VGA_B,
-		output VGA_HSYNC,
-		output VGA_VSYNC,
-		output SRAM_WE_n,
-		output [20:0]SRAM_A,
-		inout [7:0]SRAM_D,
-		output LED,
-		output AUDIO_L,
-		output AUDIO_R,
-		inout PS2CLKA,
-		inout PS2CLKB,
-		inout PS2DATA,
-		inout PS2DATB,
-		output SD_nCS,
-		output SD_DI,
-		output SD_CK,
-		input SD_DO,
-		input P_A,
-		input P_U,
-		input P_D,
-		input P_L,
-		input P_R,
-		input P_tr		
+		input  wire CLK_50MHZ,
+		output wire [5:0]VGA_R,
+		output wire [5:0]VGA_G,
+		output wire [5:0]VGA_B,
+		output wire VGA_HSYNC,
+		output wire VGA_VSYNC,
+		output wire SRAM_WE_n,
+		output wire [20:0]SRAM_A,
+		inout  wire [7:0]SRAM_D,
+		output wire LED,
+		output wire AUDIO_L,
+		output wire AUDIO_R,
+		inout  wire PS2CLKA,
+		inout  wire PS2CLKB,
+		inout  wire PS2DATA,
+		inout  wire PS2DATB,
+		output wire SD_nCS,
+		output wire SD_DI,
+		output wire SD_CK,
+		input  wire SD_DO,
+		input  wire P_A,
+		input  wire P_U,
+		input  wire P_D,
+		input  wire P_L,
+		input  wire P_R,
+		input  wire P_tr		
 
 	);
 	
 	wire [5:0] r, g, b;	
 	reg [5:0] raux, gaux, baux;
 	wire [1:0] monochrome_switcher;
-			
-	wire clk_28_571;
+	
+	wire clk_28_636;
 	wire clk_25;
-	wire clk_19_048;	
-	wire clk_9_524;
-	wire clk_4_762;	
+	wire clk_14_318;
+	wire clk_7_169;
+	wire clk_4_772;
+	
 		
 	reg [5:0]red_weight[0:63] = { // 0.2126*R
 	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04,
@@ -65,21 +66,20 @@ module ZXUno_Next186lite_2MB_EXT
 	dcm dcm_system 
 	(
 		.CLK_IN1(CLK_50MHZ), 
-		.CLK_OUT1(clk_28_571),
+		.CLK_OUT1(clk_28_636),
 		.CLK_OUT2(clk_25),
-		.CLK_OUT3(clk_19_048),
-		.CLK_OUT4(clk_9_524),
-		.CLK_OUT5(clk_4_762)		
+		.CLK_OUT3(clk_14_318),
+		.CLK_OUT4(clk_7_169),
+		.CLK_OUT5(clk_4_772)
 		
     );
    
 	system_2MB sys_inst
 	(	
-		.clk_vga(clk_28_571),
-		.clk_cpu_base(clk_19_048),		
-		.clk_kb(clk_9_524),
-		.clk_sdr(clk_4_762),
-		.clk_sram(clk_9_524),		
+		.clk_vga(clk_28_636),
+		.clk_cpu_base(clk_14_318),
+		.clk_sdr(clk_14_318), 
+		.clk_sram(clk_28_636), 
 		.clk_25(clk_25),
 		
 		.VGA_R(r),

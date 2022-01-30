@@ -51,6 +51,8 @@
 //		NET "PS2_CLK2" LOC = "U11" | IOSTANDARD = LVCMOS33 | DRIVE = 8 | SLEW = SLOW ;
 //		NET "PS2_DATA2" LOC = "Y12" | IOSTANDARD = LVCMOS33 | DRIVE = 8 | SLEW = SLOW ;
 //////////////////////////////////////////////////////////////////////////////////
+// 12Feb2018 - fix KB connection issue
+//////////////////////////////////////////////////////////////////////////////////
 `timescale 1ns / 1ps
 
 module KB_Mouse_8042(
@@ -69,13 +71,16 @@ module KB_Mouse_8042(
 	 inout PS2_DATA2,
 	 output reg [1:0] monochrome_switcher,
 	 output reg [1:0] cpu_speed_switcher,
-	 output reg nmi_button
+	 output reg nmi_button,
+	 input cpu_speed_io,
+	 input [1:0] cpu_speed
+	 
     );
 	 
 	 initial begin
         monochrome_switcher = 2'b0;
 		  nmi_button = 1'b0;
-		  cpu_speed_switcher = 2'd2;
+		  cpu_speed_switcher = 2'd1;
     end
 	 
 //	status bit5 = MOBF (mouse to host buffer full - with OBF), bit4=INH, bit2(1-initialized ok), bit1(IBF-input buffer full - host to kb/mouse), bit0(OBF-output buffer full - kb/mouse to host)
@@ -144,14 +149,15 @@ module KB_Mouse_8042(
 	
 	always @(posedge clk) begin
 		CPU_RST <= 0;
-		if(~kb_data_in_ready) wr_kb <= 0;
+		if(~kb_data_in_ready) wr_kb <= 1'b0;
 		if(~kb_data_out_ready) rd_kb <= 1'b0;
 		if(~mouse_data_in_ready) wr_mouse <= 0;
 		if(~mouse_data_out_ready) rd_mouse <= 1'b0;
+		if(cpu_speed_io) cpu_speed_switcher <= cpu_speed;
 
 		clkdiv128 <= clkdiv128[6:0] + 1'b1;
 		if(CS & WR & ~cmd & ~wcfg) cnt100us <= 0; // reset 100us counter for PS2 writing
-		else if(!cnt100us[7] & clkdiv128[7]) cnt100us <= cnt100us + 1;
+		else if(!cnt100us[7] & clkdiv128[7]) cnt100us <= cnt100us + 1'b1;
 		
 		
 		if(~OBF & ~MOBF)
@@ -173,11 +179,11 @@ module KB_Mouse_8042(
 					monochrome_switcher <= monochrome_switcher + 1; // MonochromeRGB				
 				
 				// CTRL + ALT + KeyPad -
-				if (kb_data == 8'hca && s_data != 8'he0 && cpu_speed_switcher != 2'd2 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
+				if (kb_data == 8'hca && s_data != 8'he0 && cpu_speed_switcher < 2'd2 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
 					cpu_speed_switcher <= cpu_speed_switcher + 2'd1; // CPU Speed --
 								
 				// CTRL + ALT + KeyPad +
-				if (kb_data == 8'hce && s_data != 8'he0 && cpu_speed_switcher != 2'd0 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1) 
+				if (kb_data == 8'hce && s_data != 8'he0 && cpu_speed_switcher > 2'd1 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1) 
 					cpu_speed_switcher <= cpu_speed_switcher - 2'd1; // CPU Speed ++
 				
 				s_data <= kb_data;				
@@ -192,7 +198,7 @@ module KB_Mouse_8042(
 			if(WR)
 				if(cmd)	// 0x64 write
 					case(din)
-						8'h20: ctl_outb <= 1;	// read config byte
+						8'h20: ctl_outb <= 1'b1;	// read config byte
 						8'h60: wcfg <= 1;			// write config byte
 						8'ha7: cmdbyte[3] <= 1;	// disable mouse
 						8'ha8: cmdbyte[3] <= 0;	// enable mouse
@@ -208,7 +214,6 @@ module KB_Mouse_8042(
 						wr_mouse <= next_mouse;
 						wr_kb <= ~next_mouse;
 						wr_data <= {~^din, din, 1'b0};
-//						cnt100us <= 0;	// reset 100us counter for PS2 writing
 					end
 					wcfg <= 0;
 				end
@@ -240,34 +245,45 @@ module PS2Interface(
 	 output data_shift,
 	 input clk_sample
 	);
-	reg [1:0]s_clk = 2'b11;
-	reg [9:0]data = 0;
-	reg rd_progress = 0;
-	reg s_ps2_clk = 1'b1;
 	
-	assign PS2_CLK = ((~data_out_ready & data_in_ready) | (~data_in_ready & delay100us)) ? 1'bz : 1'b0;
-	assign PS2_DATA = (data_in_ready | data_in | ~delay100us) ? 1'bz : 1'b0;
+	initial data_out_ready = 1;
+	initial data_in_ready = 1;
+	
+	reg [1:0]s_clk = 2'b11;
+	wire ps2_clk_fall = s_clk == 2'b10;
+	reg [9:0]data = 0;
+	reg rd_progress = 1'b0;
+	reg s_ps2_clk = 1'b1;
+	reg rclk = 1'b1;
+	reg rdata = 1'b1;
+	reg s_ps2_data = 1'b1;
+	
+	assign PS2_CLK = rclk ? 1'bz : 1'b0;
+	assign PS2_DATA = rdata ? 1'bz : 1'b0;
 	assign data_out = data[7:0];
-	assign data_shift = ~data_in_ready && delay100us && s_clk == 2'b10;
+	assign data_shift = ~data_in_ready && delay100us && ps2_clk_fall;
 
 	always @(posedge clk) begin
-		if(clk_sample) s_ps2_clk <= PS2_CLK; // debounce PS2 clock
+		if(clk_sample) begin
+			s_ps2_clk <= PS2_CLK; 	// debounce PS2 clock and data
+			s_ps2_data <= PS2_DATA & rdata;;
+		end
+		
 		s_clk <= {s_clk[0], s_ps2_clk};
 		if(data_out_ready) rd_progress <= 1'b0;
 
 		if(~data_in_ready) begin	// send data to PS2
-			if(data_shift) data_in_ready <= data_in ^ PS2_DATA;
-		end else if(wr && ~rd_progress) begin	// initiate data sending to PS2
-			data_in_ready <= 1'b0;
-		end else if(~data_out_ready) begin	// receive data from PS2
-			if(s_clk == 2'b10) begin
+			if(data_shift) data_in_ready <= data_in ^ s_ps2_data;
+		end else if(wr && ~rd_progress) data_in_ready <= 1'b0;	// initiate data sending to PS2
+		else if(~data_out_ready) begin	// receive data from PS2
+			if(ps2_clk_fall) begin
 				rd_progress <= 1'b1;
-				if(!rd_progress) data <= 10'b1111111111;
+				if(rd_progress) {data, data_out_ready} <= {s_ps2_data, data[9:1], ~data[0]}; // receive is ended by data[9]
+				else data <= 10'b0111111111;
 			end
-			if(s_clk == 2'b01 && rd_progress) {data, data_out_ready} <= {PS2_DATA, data[9:1], ~data[0]}; // receive is ended by the stop bit
-		end else if(rd) begin	// initiate data receiving from PS2
-//			data <= 10'b1111111111;	
-			data_out_ready <= 1'b0;
-		end	
+		end else if(rd) data_out_ready <= 1'b0; // initiate data receiving from PS2
+
+		rclk <= ((~data_out_ready & data_in_ready) | (~data_in_ready & delay100us));
+		rdata <= (data_in_ready | data_in | ~delay100us);
 	end
 endmodule
