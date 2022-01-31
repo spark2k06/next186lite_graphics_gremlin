@@ -15,7 +15,7 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 ### Demostración
 
-[![Alt text](https://lh3.googleusercontent.com/pw/AM-JKLUV9PB55D0MieEYQAd9cCj-9bW4pR9aMlowqKWm2t3Nh9mkeFxihPSnopOpn053ytlhib9oQyIpYs-ecqNHf2uMlmOYGhbLy7TkVAn5jJg4fhmAcebjAzrelnwq_KqYTe8tcudrD5lIJmvU77areEIn5Q=w1129-h631-no?authuser=0)](https://www.youtube.com/watch?v=DJegKkxdmRs)
+[![Alt text](https://lh3.googleusercontent.com/pw/AM-JKLX92yZDX6OK9YoDzmZlH4BPxe6ohA4OumpBptazThx63qNRZE2XzxVzdXzGxCjQ8lK8GZCelAGcl-KbOW0uiCNyoKuZJsdzmzQ6ygMnYoePemKOKn1Oh2lI2IVHq8nC15mtlKdAwJ6A2rRcph_fmI94_A=w1174-h652-no)](https://www.youtube.com/watch?v=hjJ8X5TZxq4)
 
 
 
