@@ -10,8 +10,9 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 ### Atajos de teclado especiales
 
 * CTRL + ALT + Bloq Despl -> Cambio a Verde - Ambar - B&W (Simulación de monitor monocromático)
-* CTRL + ALT + KeyPad + -> Sube la velocidad del procesador 
-* CTRL + ALT + KeyPad - -> Baja la velocidad del procesador 
+* CTRL + ALT + KeyPad - -> Throttle Down
+* CTRL + ALT + KeyPad + -> Velocidad normal a 12MHz
+ 
 
 ### Demostración
 
