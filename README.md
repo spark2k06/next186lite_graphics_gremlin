@@ -34,6 +34,10 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 # Historial de cambios
 
+### ZXUno PCXT CGA (Release 2)
+
+Fix en la cache de instrucciones que soluciona glitches graficos en varios juegos de Dinamic, como Army Moves, Freddy Hardest y Capitan Trueno, entre otros. Gracias gyurco por el aporte.
+
 ### ZXUno PCXT CGA (Release 1)
 
 Versión estable y cierre del primer ciclo de desarrollo. Al no ser sencilla la eliminación de la cache por importante dependencia con el funcionamiento del Next186, en el futuro se valorará la posibilidad de sustituirlo por el proyecto MCL86 de @MicroCoreLabs, con idea de lograr un core de ciclo exacto con un 8088, y modos de funcionamiento turbo opcionales.
