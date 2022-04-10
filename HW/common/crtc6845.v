@@ -14,9 +14,10 @@ module crtc6845(
     // ISA bus
     input cs,
     input a0,
+	 input word,
     input write,
     input read,
-    input[7:0] bus,
+    input[15:0] bus,
     output[7:0] bus_out,
 
     input lock,
@@ -54,24 +55,24 @@ module crtc6845(
 
     // Register file
     always @ (posedge clk) begin
-        if (a0 & write & cs & (~lock | (cur_addr > 5'd9))) begin
-            case (cur_addr)
-                5'd0: h_total <= bus;
-                5'd1: h_disp <= bus;
-                5'd2: h_syncpos <= bus;
-                5'd3: h_syncwidth <= bus[3:0];
-                5'd4: v_total <= bus[6:0];
-                5'd5: v_totaladj <= bus[4:0];
-                5'd6: v_disp <= bus[6:0];
-                5'd7: v_syncpos <= bus[6:0];
+        if ((a0 | word) & write & cs & (~lock | ((word ? bus[4:0] : cur_addr) > 5'd9))) begin
+            case (word ? bus[4:0] : cur_addr)
+                5'd0: h_total <= word ? bus[15:8] : bus[7:0];
+                5'd1: h_disp <= word ? bus[15:8] : bus[7:0];
+                5'd2: h_syncpos <= word ? bus[15:8] : bus[7:0];
+                5'd3: h_syncwidth <= word ? bus[11:8] : bus[3:0];
+                5'd4: v_total <= word ? bus[14:8] : bus[6:0];
+                5'd5: v_totaladj <= word ? bus[12:8] : bus[4:0];
+                5'd6: v_disp <= word ? bus[14:8] : bus[6:0];
+                5'd7: v_syncpos <= word ? bus[14:8] : bus[6:0];
                 // Register 8 not implemented
-                5'd9: v_maxscan <= bus[4:0];
-                5'd10: c_start <= bus[6:0];
-                5'd11: c_end <= bus[4:0];
-                5'd12: start_a[13:8] <= bus[5:0];
-                5'd13: start_a[7:0] <= bus;
-                5'd14: cursor_a[13:8] <= bus[5:0];
-                5'd15: cursor_a[7:0] <= bus;
+                5'd9: v_maxscan <= word ? bus[12:8] : bus[4:0];
+                5'd10: c_start <= word ? bus[14:8] : bus[6:0];
+                5'd11: c_end <= word ? bus[12:8] : bus[4:0];
+                5'd12: start_a[13:8] <= word ? bus[13:8] : bus[5:0];
+                5'd13: start_a[7:0] <= word ? bus[15:8] : bus[7:0];
+                5'd14: cursor_a[13:8] <= word ? bus[13:8] : bus[5:0];
+                5'd15: cursor_a[7:0] <= word ? bus[15:8] : bus[7:0];					 
                 default: ;
             endcase
         end

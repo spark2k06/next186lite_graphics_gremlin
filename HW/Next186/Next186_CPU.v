@@ -453,7 +453,7 @@ module Next186_CPU(
 				WE[1:0] = WRBIT;		// IP, RASEL_HI/RASEL_LO
 				ISIZE = 3;
 				NOBP = 1'b1;
-				FFLUSH_REQ = 1;
+				FFLUSH_REQ = WR;
 			end
 // --------------------------------  segment override prefix --------------------------------
 			4: begin	

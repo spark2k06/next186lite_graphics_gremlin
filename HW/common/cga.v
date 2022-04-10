@@ -17,7 +17,8 @@ module cga(
     input bus_iow_l,
     input bus_memr_l,
     input bus_memw_l,
-    input[7:0] bus_d,
+	 input word,
+    input[15:0] bus_d,
     output[7:0] bus_out,
     output bus_dir,
     input bus_aen,
@@ -147,10 +148,10 @@ module cga(
             bus_int_out <= cga_status_reg;
         end else if (crtc_cs & ~bus_ior_l & (bus_a[0] == 1)) begin
             bus_int_out <= bus_out_crtc;
-		  end if (status_cs) begin
-				bus_int_out <= cga_status_reg;
-		  end else if (crtc_cs) begin
-				bus_int_out <= bus_out_crtc;
+		  //end if (status_cs) begin
+		  //		bus_int_out <= cga_status_reg;
+		  //end else if (crtc_cs) begin
+		  //		bus_int_out <= bus_out_crtc;
         end else begin
             bus_int_out <= 8'h00;
         end
@@ -231,9 +232,9 @@ module cga(
     begin
         if (~bus_iow_synced_l) begin
             if (control_cs) begin
-                cga_control_reg <= bus_d;
+                cga_control_reg <= bus_d[7:0];
             end else if (colorsel_cs) begin
-                cga_color_reg <= bus_d;
+                cga_color_reg <= bus_d[7:0];
             end
         end
     end
@@ -244,6 +245,7 @@ module cga(
         .divclk(crtc_clk),
         .cs(crtc_cs),
         .a0(bus_a[0]),
+		  .word(word),
         .write(~bus_iow_synced_l),
         .read(~bus_ior_synced_l),
         .bus(bus_d),

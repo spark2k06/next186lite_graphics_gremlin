@@ -34,6 +34,10 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 # Historial de cambios
 
+### ZXUno PCXT CGA (Release 3)
+
+Adaptacion del modulo CGA para aceptar accesos de 16 bits a los registros de ésta, para tener compatibilidad con Next186. Son accesos de tipo OUT DX, AX. Ahora funciona correctamente el juego PAKU PAKU. Gracias gyurco por las ideas acercas del modo especial de texto que utiliza el juego.
+
 ### ZXUno PCXT CGA (Release 2)
 
 Fix en la cache de instrucciones que soluciona glitches graficos en varios juegos de Dinamic, como Army Moves, Freddy Hardest y Capitan Trueno, entre otros. Gracias gyurco por el aporte.
