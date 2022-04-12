@@ -314,12 +314,13 @@ module system_512KB
 
     cga cga1 (
         .clk(clk_vga),        
-	.bus_a(PORT_ADDR),        
-	.bus_ior_l(~(IORQ & CPU_CE)),		  
+		  .bus_a(PORT_ADDR),        
+		  .bus_ior_l(WR),
         .bus_iow_l(~WR),
         .bus_memr_l(1'd0),
         .bus_memw_l(1'd0),
-        .bus_d(CPU_DOUT[7:0]),
+		  .word(WORD),
+        .bus_d(CPU_DOUT),
         .bus_out(CRTC_DOUT),
         .bus_dir(CRTC_OE),
         .bus_aen(~(IORQ & CPU_CE)),        
