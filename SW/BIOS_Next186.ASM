@@ -162,7 +162,7 @@ SCANCODE1   equ 1
     
         org 0e000h        
 bios:        
-biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.01.30]', 0
+biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.04.12]', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
         
