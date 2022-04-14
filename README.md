@@ -36,7 +36,7 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 ### ZXUno PCXT CGA (Release 4)
 
-* CTRL + ALT + DEL -> MasterReset
+* CTRL + ALT + BackSpace -> MasterReset
 * Soporte joystick protocolo Atari, mapeado en teclado numérico
 
 ### ZXUno PCXT CGA (Release 3)
