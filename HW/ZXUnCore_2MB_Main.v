@@ -101,7 +101,13 @@ module ZXUnCore_Next186lite_2MB
 		.PS2_CLK2(PS2CLKB),
 		.PS2_DATA1(PS2DATA),
 		.PS2_DATA2(PS2DATB),
-		.monochrome_switcher(monochrome_switcher)
+		.monochrome_switcher(monochrome_switcher),		
+		.joy_up(P_U),
+		.joy_down(P_D),
+		.joy_left(P_L),
+		.joy_right(P_R),
+		.joy_fire1(P_tr),
+		.joy_fire2(P_A)
 		
 	);
 	

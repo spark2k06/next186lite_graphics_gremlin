@@ -71,9 +71,16 @@ module KB_Mouse_8042(
 	 inout PS2_DATA2,
 	 output reg [1:0] monochrome_switcher,
 	 output reg [1:0] cpu_speed_switcher,
+	 output reg kbd_mreset,
 	 output reg nmi_button,
 	 input cpu_speed_io,
-	 input [1:0] cpu_speed
+	 input [1:0] cpu_speed,
+	 input  wire joy_up,
+	 input  wire joy_down,
+	 input  wire joy_left,
+	 input  wire joy_right,
+	 input  wire joy_fire1,
+	 input  wire joy_fire2
 	 
     );
 	 
@@ -81,6 +88,7 @@ module KB_Mouse_8042(
         monochrome_switcher = 2'b0;
 		  nmi_button = 1'b0;
 		  cpu_speed_switcher = 2'd1;
+		  kbd_mreset = 1'b1;
     end
 	 
 //	status bit5 = MOBF (mouse to host buffer full - with OBF), bit4=INH, bit2(1-initialized ok), bit1(IBF-input buffer full - host to kb/mouse), bit0(OBF-output buffer full - kb/mouse to host)
@@ -100,6 +108,9 @@ module KB_Mouse_8042(
 	reg [7:0]s_data;
 	reg ctrl_pressed = 0;
 	reg alt_pressed = 0;
+	wire [5:0]joy_map;
+	reg [5:0]joy_map_aux = 1'b111111;
+	reg [5:0]joy_map_changes = 0;	
 
 	wire [7:0]kb_data;	
 	wire [7:0]mouse_data;
@@ -114,6 +125,7 @@ module KB_Mouse_8042(
 	assign dout = cmd ? {2'b00, MOBF, 1'b1, wcfg, 1'b1, IBF, OBF | MOBF | ctl_outb} : ctl_outb ? {2'b00, cmdbyte[3:2], 2'b00, cmdbyte[1:0]} : s_data; //MOBF ? mouse_data : kb_data;
 	assign I_KB = cmdbyte[0] & OBF; 			// INT & OBF
 	assign I_MOUSE = cmdbyte[1] & MOBF; 	// INT2 & MOBF
+	assign joy_map = {joy_up, joy_down, joy_left, joy_right, joy_fire1, joy_fire2};
 	
 	PS2Interface Keyboard
 	(
@@ -158,39 +170,89 @@ module KB_Mouse_8042(
 		clkdiv128 <= clkdiv128[6:0] + 1'b1;
 		if(CS & WR & ~cmd & ~wcfg) cnt100us <= 0; // reset 100us counter for PS2 writing
 		else if(!cnt100us[7] & clkdiv128[7]) cnt100us <= cnt100us + 1'b1;
-		
-		
-		if(~OBF & ~MOBF)
-			if(kb_data_out_ready & ~rd_kb & ~cmdbyte[2]) begin
-				OBF <= 1'b1;			
-				
-				if (kb_data == 8'h1d && s_data != 8'he0) ctrl_pressed = 1'b1;
-				if (kb_data == 8'h9d && s_data != 8'he0) ctrl_pressed = 1'b0;
-				
-				if (kb_data == 8'h38 && s_data != 8'he0) alt_pressed = 1'b1;
-				if (kb_data == 8'hb8 && s_data != 8'he0) alt_pressed = 1'b0;
-				
-				// CTRL + ALT + F12
-				if (kb_data == 8'hd8 && s_data != 8'he0 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
-					nmi_button <= ~nmi_button;	// NMI
-
-				// CTRL + ALT + Bloq Despl
-				if (kb_data == 8'hc6 && s_data != 8'he0 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
-					monochrome_switcher <= monochrome_switcher + 1; // MonochromeRGB				
-				
-				// CTRL + ALT + KeyPad -
-				if (kb_data == 8'hca && s_data != 8'he0 && cpu_speed_switcher < 2'd2 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1)
-					cpu_speed_switcher <= cpu_speed_switcher + 2'd1; // CPU Speed --
 								
-				// CTRL + ALT + KeyPad +
-				if (kb_data == 8'hce && s_data != 8'he0 && cpu_speed_switcher > 2'd1 && ctrl_pressed == 1'b1 && alt_pressed == 1'b1) 
-					cpu_speed_switcher <= cpu_speed_switcher - 2'd1; // CPU Speed ++
+		if(~OBF & ~MOBF)
+			
+			if (~joy_map_changes[0] & joy_map[0] != joy_map_aux[0])
+				joy_map_changes[0] <= 1;
+			if (~joy_map_changes[1] & joy_map[1] != joy_map_aux[1])
+				joy_map_changes[1] <= 1;
+			if (~joy_map_changes[2] & joy_map[2] != joy_map_aux[2])
+				joy_map_changes[2] <= 1;
+			if (~joy_map_changes[3] & joy_map[3] != joy_map_aux[3])
+				joy_map_changes[3] <= 1;
+			if (~joy_map_changes[4] & joy_map[4] != joy_map_aux[4])
+				joy_map_changes[4] <= 1;
+			if (~joy_map_changes[5] & joy_map[5] != joy_map_aux[5])
+				joy_map_changes[5] <= 1;
+		
+			if(kb_data_out_ready & ~rd_kb & ~cmdbyte[2]) begin
+				OBF <= 1'b1;
 				
-				s_data <= kb_data;				
-			end else if(mouse_data_out_ready & ~rd_mouse & ~cmdbyte[3]) begin
-				MOBF <= 1'b1;
-				s_data <= mouse_data;				
+				if (s_data != 8'he0) begin					
+					if (kb_data == 8'h1d) ctrl_pressed = 1'b1;
+					if (kb_data == 8'h9d) ctrl_pressed = 1'b0;
+					if (kb_data == 8'h38) alt_pressed = 1'b1;
+					if (kb_data == 8'hb8) alt_pressed = 1'b0;				
+					if (ctrl_pressed == 1'b1 && alt_pressed == 1'b1) begin
+						case (kb_data)								
+							// NMI (CTRL + ALT + F12)
+							8'hd8: nmi_button <= ~nmi_button;
+							// MasterReset (CTRL + ALT + BackSpace)
+							8'h0e: kbd_mreset <= ~kbd_mreset;
+							// MonochromeRGB (CTRL + ALT + Bloq Despl)
+							8'hc6: monochrome_switcher <= monochrome_switcher + 1;
+							// CPU Speed -- (CTRL + ALT + KeyPad -)
+							8'hca: cpu_speed_switcher <= cpu_speed_switcher < 2'd2 ? cpu_speed_switcher + 2'd1 : cpu_speed_switcher;
+							// CPU Speed ++ (CTRL + ALT + KeyPad +)
+							8'hce: cpu_speed_switcher <= cpu_speed_switcher > 2'd1 ? cpu_speed_switcher - 2'd1 : cpu_speed_switcher;						
+						endcase
+					end
+				end
+				
+				s_data <= kb_data;
+				
 			end
+			else if(mouse_data_out_ready & ~rd_mouse & ~cmdbyte[3]) begin
+				MOBF <= 1'b1;
+				s_data <= mouse_data;
+			end
+			else if (joy_map_changes[5]) begin
+				OBF <= 1'b1;
+				s_data <= joy_map_aux[5] ? 8'h48 : 8'hc8; // Keypad 8
+				joy_map_aux[5] <= joy_map[5];
+				joy_map_changes[5] <= 0;
+			end
+			else if (joy_map_changes[4]) begin
+				OBF <= 1'b1;
+				s_data <= joy_map_aux[4] ? 8'h50 : 8'hd0; // Keypad 2
+				joy_map_aux[4] <= joy_map[4];
+				joy_map_changes[4] <= 0;
+			end
+			else if (joy_map_changes[3]) begin
+				OBF <= 1'b1;
+				s_data <= joy_map_aux[3] ? 8'h4b : 8'hcb; // Keypad 4
+				joy_map_aux[3] <= joy_map[3];
+				joy_map_changes[3] <= 0;
+			end
+			else if (joy_map_changes[2]) begin
+				OBF <= 1'b1;
+				s_data <= joy_map_aux[2] ? 8'h4d : 8'hcd; // Keypad 6
+				joy_map_aux[2] <= joy_map[2];
+				joy_map_changes[2] <= 0;
+			end	
+			else if (joy_map_changes[1]) begin
+				OBF <= 1'b1;
+				s_data <= joy_map_aux[1] ? 8'h52 : 8'hd2; // Keypad 0
+				joy_map_aux[1] <= joy_map[1];
+				joy_map_changes[1] <= 0;
+			end				
+			else if (joy_map_changes[0]) begin
+				OBF <= 1'b1;
+				s_data <= joy_map_aux[0] ? 8'h53 : 8'hd3; // Keypad .	
+				joy_map_aux[0] <= joy_map[0];
+				joy_map_changes[0] <= 0;
+			end				
 		
 		if(kb_shift | mouse_shift) wr_data <= {1'b1, wr_data[9:1]};
 		

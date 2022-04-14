@@ -34,6 +34,11 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 
 # Historial de cambios
 
+### ZXUno PCXT CGA (Release 4)
+
+* CTRL + ALT + DEL -> MasterReset
+* Soporte joystick protocolo Atari, mapeado en teclado numérico
+
 ### ZXUno PCXT CGA (Release 3)
 
 * Adaptacion del modulo CGA para aceptar accesos de 16 bits a los registros de ésta, para tener compatibilidad con Next186. Son accesos de tipo OUT DX, AX. Ahora funciona correctamente el juego PAKU PAKU. Gracias gyurco por las ideas acerca del modo especial de texto que utiliza el juego.

@@ -152,7 +152,13 @@ module system_512KB
 		 inout PS2_CLK2,
 		 inout PS2_DATA1,
 		 inout PS2_DATA2,
-		 output wire [1:0] monochrome_switcher
+		 output wire [1:0] monochrome_switcher,
+		 input  wire joy_up,
+		 input  wire joy_down,
+		 input  wire joy_left,
+		 input  wire joy_right,
+		 input  wire joy_fire1,
+		 input  wire joy_fire2
 		 		 
     );
 		 
@@ -459,10 +465,17 @@ module system_512KB
 		 .PS2_DATA1(PS2_DATA1), 
 		 .PS2_DATA2(PS2_DATA2),
 		 .monochrome_switcher(monochrome_switcher),
-		 .cpu_speed_switcher(cpu_speed_switcher),
+		 .cpu_speed_switcher(cpu_speed_switcher),		 
 		 .nmi_button(nmi_button),
 		 .cpu_speed_io(IORQ && CPU_CE && WR && ~WORD && CPU_SPEED_OE),
-		 .cpu_speed(CPU_DOUT[1:0])
+		 .cpu_speed(CPU_DOUT[1:0]),
+		 .kbd_mreset(kbd_mreset),
+		 .joy_up(joy_up),
+		 .joy_down(joy_down),
+		 .joy_left(joy_left),
+		 .joy_right(joy_right),
+		 .joy_fire1(joy_fire1),
+		 .joy_fire2(joy_fire2)
 		 
 	);
 	
@@ -552,6 +565,11 @@ module system_512KB
 		.snd(opl2snd)		
 		//.irq_n()		
 	);
+	
+	multiboot vuelta_bios (
+    .clk_icap(clk_cpu_base),   // WARNING: this clock must not be greater than 20MHz (50ns period)
+    .boot(kbd_mreset)
+   );
 
 	always @ (posedge clk_sdr) begin		
 		s_ddr_rd <= {s_ddr_rd[0], ddr_rd};
