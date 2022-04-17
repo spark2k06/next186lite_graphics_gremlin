@@ -1,26 +1,56 @@
-module multiboot (
+module bootcore (
     input wire clk_icap,   // WARNING: this clock must not be greater than 20MHz (50ns period)
-    input wire boot
+    input wire coldreset = 1'b0,
+	 input wire masterreset = 1'b0,	 
+	 input wire we,
+	 input wire [7:0] corenn,
+	 output reg coreset = 1'b0
     );
     
-    reg [4:0] q = 5'b00000;
+	 reg [23:0] reset_spi_addr;
+    reg [4:0] q1 = 5'b00000;
+	 reg [4:0] q2 = 5'b00000;
     reg reboot_ff = 1'b0;
     always @(posedge clk_icap) begin
-      q[0] <= boot;
-      q[1] <= q[0];
-      q[2] <= q[1];
-      q[3] <= q[2];
-      q[4] <= q[3];
-      reboot_ff <= (q[4] && (!q[3]) && (!q[2]) && (!q[1]) );
-    end
 
-    multiboot_spartan6 hacer_multiboot (
-        .CLK(clk_icap),
-        .MBT_RESET(1'b0),
-        .MBT_REBOOT(reboot_ff),
-        .spi_addr(24'h000000)
+		if (we) begin			
+			coreset <= 1'b1;
+			if (corenn == 0) reset_spi_addr <= 0;
+			else if (corenn < 10) reset_spi_addr <= (24'h054000 * corenn) + 24'h004000;
+			else if (corenn < 46) reset_spi_addr <= (24'h054000 * (corenn - 10)) + 24'h400000;
+			else reset_spi_addr <= 0;			
+		end
+		if (coreset) begin
+			q1[0] <= coldreset;
+			q1[1] <= q1[0];
+			q1[2] <= q1[1];
+			q1[3] <= q1[2];
+			q1[4] <= q1[3];
+		end
+
+		q2[0] <= masterreset;
+		q2[1] <= q2[0];
+		q2[2] <= q2[1];
+		q2[3] <= q2[2];
+		q2[4] <= q2[3];
+		
+		if (q1[4] && (!q1[3]) && (!q1[2]) && (!q1[1]) ) reboot_ff <= 1'b1;
+			
+		else if (q2[4] && (!q2[3]) && (!q2[2]) && (!q2[1]) ) begin
+			reboot_ff <= 1'b1;
+			reset_spi_addr <= 24'h000000;
+		end
+		
+    end	 
+	 
+	 multiboot_spartan6 multiboot (
+      .CLK(clk_icap),
+		.MBT_RESET(1'b0),
+		.MBT_REBOOT(reboot_ff),
+		.spi_addr(reset_spi_addr)
     );
-endmodule            
+	 
+endmodule           
     
 module multiboot_spartan6 (
     input wire CLK,

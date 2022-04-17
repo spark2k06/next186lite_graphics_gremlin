@@ -192,7 +192,8 @@ module system_512KB
 	wire LED_PORT = PORT_ADDR[15:0] == 16'h03bc;
 	wire SPEAKER_PORT = PORT_ADDR[15:0] == 16'h0061;
 	wire CPU_SPEED_OE = PORT_ADDR[15:0] == 12'h0097;	
-	wire MEMORY_SIZE = PORT_ADDR[15:0] == 16'h0098;	
+	wire MEMORY_SIZE = PORT_ADDR[15:0] == 16'h0098;
+	wire PCXTCORENN = PORT_ADDR[15:0] == 16'h0099;
 	wire MEMORY_MAP = PORT_ADDR[15:4] == 12'h008;	
 	wire RS232_OE = PORT_ADDR[15:0] == 16'h0001;
 	wire SD_OE = PORT_ADDR[15:0] == 16'h0300;
@@ -212,6 +213,8 @@ module system_512KB
 	
 	wire HALT;
 	wire nmi_button;
+	wire kbd_mreset;
+	wire kbd_creset;
 	
 	reg [1:0] cpu_speed_io = 2'b1;	
 	wire [1:0] cpu_speed_switcher;	
@@ -219,7 +222,8 @@ module system_512KB
 	reg [1:0]command = 0;
 	reg [1:0]s_ddr_rd = 0;
 	reg [1:0]s_ddr_wr = 0;
-
+	wire coreset;
+	
 	reg s_RS232_DCE_RXD;
 	reg s_RS232_HOST_RXD;
 	reg [4:0]rstcount = 0;		
@@ -248,7 +252,7 @@ module system_512KB
 	
 	assign LED = ~SD_n_CS;
 	//reg test_led = 0;
-	//assign LED = test_led;		
+	//assign LED = test_led;	
 		
 // NMI on IORQ
 	reg [15:0]NMIonIORQ_LO = 16'h0001;
@@ -404,8 +408,8 @@ module system_512KB
 	);
 	
 	
-	always @ (posedge clk_cpu_base)
-		div_clk_cpu <= div_clk_cpu + 3'd1;	
+	always @ (posedge clk_cpu_base)		
+		div_clk_cpu <= div_clk_cpu + 3'd1;
 
   always @(posedge clk_vga) begin
 		sndval <= sndval - sndval[31:7] + (sndsign << 25);				
@@ -470,12 +474,14 @@ module system_512KB
 		 .cpu_speed_io(IORQ && CPU_CE && WR && ~WORD && CPU_SPEED_OE),
 		 .cpu_speed(CPU_DOUT[1:0]),
 		 .kbd_mreset(kbd_mreset),
+		 .kbd_creset(kbd_creset),
 		 .joy_up(joy_up),
 		 .joy_down(joy_down),
 		 .joy_left(joy_left),
 		 .joy_right(joy_right),
 		 .joy_fire1(joy_fire1),
-		 .joy_fire2(joy_fire2)
+		 .joy_fire2(joy_fire2),
+		 .coreset(coreset)
 		 
 	);
 	
@@ -515,7 +521,7 @@ module system_512KB
 		 .INTR(INT), 
 		 //.NMI(rNMI[9] || (CPU_CE && IORQ && PORT_ADDR >= NMIonIORQ_LO && PORT_ADDR <= NMIonIORQ_HI)),
 		 .NMI(CPU_CE && IORQ && PORT_ADDR >= NMIonIORQ_LO && PORT_ADDR <= NMIonIORQ_HI),
-		 .RST(!rstcount[4]), 
+		 .RST(!rstcount[4]),		 
 		 .INTA(INTA), 
 		 .LOCK(LOCK), 
 		 .HALT(HALT), 
@@ -566,10 +572,15 @@ module system_512KB
 		//.irq_n()		
 	);
 	
-	multiboot vuelta_bios (
-    .clk_icap(clk_cpu_base),   // WARNING: this clock must not be greater than 20MHz (50ns period)
-    .boot(kbd_mreset)
-   );
+	
+	bootcore bootcore (
+    .clk_icap(clk_cpu),   // WARNING: this clock must not be greater than 20MHz (50ns period)
+    .coldreset(kbd_creset),
+	 .masterreset(kbd_mreset),
+	 .corenn(CPU_DOUT[7:0]),	 
+	 .we(IORQ && CPU_CE && WR && ~WORD && PCXTCORENN),
+	 .coreset(coreset)
+   );	
 
 	always @ (posedge clk_sdr) begin		
 		s_ddr_rd <= {s_ddr_rd[0], ddr_rd};
@@ -582,13 +593,13 @@ module system_512KB
 		else command <= 2'b00;
 	end
 	
-	always @ (posedge clk_cpu) begin	
+	always @ (posedge clk_cpu) begin
+		
 		s_cache_mreq <= CACHE_MREQ;		
 		if(IORQ & CPU_CE) begin
 			if(WR & SPEAKER_PORT) speaker_on <= CPU_DOUT[1:0];
 		end		
 		
-
 
 //LED
 	

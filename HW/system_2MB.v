@@ -192,7 +192,8 @@ module system_2MB
 	wire LED_PORT = PORT_ADDR[15:0] == 16'h03bc;
 	wire SPEAKER_PORT = PORT_ADDR[15:0] == 16'h0061;
 	wire CPU_SPEED_OE = PORT_ADDR[15:0] == 12'h0097;	
-	wire MEMORY_SIZE = PORT_ADDR[15:0] == 16'h0098;	
+	wire MEMORY_SIZE = PORT_ADDR[15:0] == 16'h0098;
+	wire PCXTCORENN = PORT_ADDR[15:0] == 16'h0099;	
 	wire MEMORY_MAP = PORT_ADDR[15:4] == 12'h008;	
 	wire RS232_OE = PORT_ADDR[15:0] == 16'h0001;
 	wire SD_OE = PORT_ADDR[15:0] == 16'h0300;
@@ -213,6 +214,7 @@ module system_2MB
 	wire HALT;
 	wire nmi_button;
 	wire kbd_mreset;
+	wire kbd_creset;
 	
 	reg [1:0] cpu_speed_io = 2'b1;	
 	wire [1:0] cpu_speed_switcher;	
@@ -220,6 +222,7 @@ module system_2MB
 	reg [1:0]command = 0;
 	reg [1:0]s_ddr_rd = 0;
 	reg [1:0]s_ddr_wr = 0;
+	wire coreset;
 
 	reg s_RS232_DCE_RXD;
 	reg s_RS232_HOST_RXD;
@@ -467,17 +470,19 @@ module system_2MB
 		 .PS2_DATA1(PS2_DATA1), 
 		 .PS2_DATA2(PS2_DATA2),
 		 .monochrome_switcher(monochrome_switcher),
-		 .cpu_speed_switcher(cpu_speed_switcher),
-		 .kbd_mreset(kbd_mreset),
+		 .cpu_speed_switcher(cpu_speed_switcher),		 
 		 .nmi_button(nmi_button),
 		 .cpu_speed_io(IORQ && CPU_CE && WR && ~WORD && CPU_SPEED_OE),
 		 .cpu_speed(CPU_DOUT[1:0]),
+		 .kbd_mreset(kbd_mreset),
+		 .kbd_creset(kbd_creset),
 		 .joy_up(joy_up),
 		 .joy_down(joy_down),
 		 .joy_left(joy_left),
 		 .joy_right(joy_right),
 		 .joy_fire1(joy_fire1),
-		 .joy_fire2(joy_fire2)
+		 .joy_fire2(joy_fire2),
+		 .coreset(coreset)
 		 
 	);
 	
@@ -570,10 +575,14 @@ module system_2MB
 		//.irq_n()		
 	);
 	
-	multiboot vuelta_bios (
-    .clk_icap(clk_cpu_base),   // WARNING: this clock must not be greater than 20MHz (50ns period)
-    .boot(kbd_mreset)
-   );
+	bootcore bootcore (
+    .clk_icap(clk_cpu),   // WARNING: this clock must not be greater than 20MHz (50ns period)
+    .coldreset(kbd_creset),
+	 .masterreset(kbd_mreset),
+	 .corenn(CPU_DOUT[7:0]),	 
+	 .we(IORQ && CPU_CE && WR && ~WORD && PCXTCORENN),
+	 .coreset(coreset)
+   );	
 
 	always @ (posedge clk_sdr) begin		
 		s_ddr_rd <= {s_ddr_rd[0], ddr_rd};

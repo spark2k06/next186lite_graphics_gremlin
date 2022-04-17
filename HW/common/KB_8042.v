@@ -72,6 +72,7 @@ module KB_Mouse_8042(
 	 output reg [1:0] monochrome_switcher,
 	 output reg [1:0] cpu_speed_switcher,
 	 output reg kbd_mreset,
+	 output reg kbd_creset,
 	 output reg nmi_button,
 	 input cpu_speed_io,
 	 input [1:0] cpu_speed,
@@ -80,15 +81,17 @@ module KB_Mouse_8042(
 	 input  wire joy_left,
 	 input  wire joy_right,
 	 input  wire joy_fire1,
-	 input  wire joy_fire2
+	 input  wire joy_fire2,
+	 input coreset
 	 
     );
 	 
 	 initial begin
-        monochrome_switcher = 2'b0;
+        monochrome_switcher = 2'b00;
 		  nmi_button = 1'b0;
 		  cpu_speed_switcher = 2'd1;
 		  kbd_mreset = 1'b1;
+		  kbd_creset = 1'b1;
     end
 	 
 //	status bit5 = MOBF (mouse to host buffer full - with OBF), bit4=INH, bit2(1-initialized ok), bit1(IBF-input buffer full - host to kb/mouse), bit0(OBF-output buffer full - kb/mouse to host)
@@ -111,6 +114,10 @@ module KB_Mouse_8042(
 	wire [5:0]joy_map;
 	reg [5:0]joy_map_aux = 1'b111111;
 	reg [5:0]joy_map_changes = 0;	
+	reg kbd_mreset_req = 1'b0;
+	reg kbd_creset_req = 1'b0;
+	reg [20:0] monochrome_switcher_req = 0;	
+	reg nmi_button_req = 1'b0;
 
 	wire [7:0]kb_data;	
 	wire [7:0]mouse_data;
@@ -160,6 +167,25 @@ module KB_Mouse_8042(
 	);
 	
 	always @(posedge clk) begin
+		if (kbd_mreset_req) kbd_mreset <= 1'b0;
+		if (kbd_creset_req) begin
+			kbd_creset <= ~coreset;
+			kbd_creset_req <= 1'b0;
+		end
+		if (nmi_button_req) nmi_button <= 1'b1;
+		if (nmi_button) nmi_button <= 1'b0;
+		
+		if (monochrome_switcher_req != 0) begin			
+			if (monochrome_switcher_req == 1) monochrome_switcher <= monochrome_switcher + 1;			
+			monochrome_switcher_req <= monochrome_switcher_req + 1;			
+		end
+		
+		if (nmi_button_req) begin
+			nmi_button <= 1'b1;
+			nmi_button_req <= 1'b0;
+		end
+		
+		
 		CPU_RST <= 0;
 		if(~kb_data_in_ready) wr_kb <= 1'b0;
 		if(~kb_data_out_ready) rd_kb <= 1'b0;
@@ -188,7 +214,7 @@ module KB_Mouse_8042(
 		
 			if(kb_data_out_ready & ~rd_kb & ~cmdbyte[2]) begin
 				OBF <= 1'b1;
-				
+												
 				if (s_data != 8'he0) begin					
 					if (kb_data == 8'h1d) ctrl_pressed = 1'b1;
 					if (kb_data == 8'h9d) ctrl_pressed = 1'b0;
@@ -197,17 +223,25 @@ module KB_Mouse_8042(
 					if (ctrl_pressed == 1'b1 && alt_pressed == 1'b1) begin
 						case (kb_data)								
 							// NMI (CTRL + ALT + F12)
-							8'hd8: nmi_button <= ~nmi_button;
+							8'hd8: nmi_button_req <= 1'b1;
 							// MasterReset (CTRL + ALT + BackSpace)
-							8'h0e: kbd_mreset <= ~kbd_mreset;
+							8'h0e: kbd_mreset_req <= 1'b1;
 							// MonochromeRGB (CTRL + ALT + Bloq Despl)
-							8'hc6: monochrome_switcher <= monochrome_switcher + 1;
+							8'h46: monochrome_switcher_req <= monochrome_switcher_req + 1;
 							// CPU Speed -- (CTRL + ALT + KeyPad -)
 							8'hca: cpu_speed_switcher <= cpu_speed_switcher < 2'd2 ? cpu_speed_switcher + 2'd1 : cpu_speed_switcher;
 							// CPU Speed ++ (CTRL + ALT + KeyPad +)
 							8'hce: cpu_speed_switcher <= cpu_speed_switcher > 2'd1 ? cpu_speed_switcher - 2'd1 : cpu_speed_switcher;						
 						endcase
 					end
+				end
+				else begin
+					if (ctrl_pressed == 1'b1 && alt_pressed == 1'b1) begin
+						case (kb_data)															
+							// ColdReset (CTRL + ALT + DEL)
+							8'h53: kbd_creset_req <= 1'b1;							
+						endcase
+					end					
 				end
 				
 				s_data <= kb_data;

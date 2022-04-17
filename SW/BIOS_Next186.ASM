@@ -162,7 +162,7 @@ SCANCODE1   equ 1
     
         org 0e000h        
 bios:        
-biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.04.12]', 0
+biosmsg     db 'Next186 SoC PC BIOS (C) 2022 Nicolae Dumitrache [22.04.16]', 0
 msgmb       db 'MB SD Card', 13, 10, 0
 msgkb       db 'PS2 KB detected', 13, 10, 0
         
@@ -366,7 +366,7 @@ nokbmsg:
         mov     si, offset msgmouse
         call    prts
 nomousemsg:
-
+                
 ;-------------- HD bootstrap
         mov     ax, 305h
         xor     bx, bx
@@ -4588,6 +4588,6 @@ gfx_font:
         
         db      0eah        
         dw      coldboot, 0f000h
-        db      '22/01/30'
+        db      '22/04/16'
         db      0ffh, 0ffh, 0
 end bios
