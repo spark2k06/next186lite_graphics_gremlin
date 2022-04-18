@@ -44,6 +44,8 @@ Integración de rutinas de vídeo CGA a partir de la BIOS del proyecto Micro8088
 * CTRL + ALT + DEL -> Ahora es un reinicio gestionado desde el propio core si se ha establecido el offset del menu de cores de ZXUno mediante OUT 99h, COREnn. De lo contrario, seguirá siendo gestionado desde la BIOS
 * Actualizacion del modulo JTOPL2
 
+Gracias @mcleod-ideafix por el modulo multiboot del ZXUno y por darme la idea de usar un puerto I/O para establecer el core asociado al reinicio
+
 ### ZXUno PCXT CGA (Release 4)
 
 * CTRL + ALT + BackSpace -> MasterReset
