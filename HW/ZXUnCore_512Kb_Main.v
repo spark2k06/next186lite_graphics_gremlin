@@ -38,8 +38,6 @@ module ZXUnCore_Next186lite_512KB
 	wire clk_28_636;
 	wire clk_25;
 	wire clk_14_318;
-	wire clk_7_169;
-	wire clk_4_772;
 		
 	reg [5:0]red_weight[0:63] = { // 0.2126*R
 	6'h00, 6'h01, 6'h01, 6'h01, 6'h01, 6'h02, 6'h02, 6'h02, 6'h02, 6'h02, 6'h03, 6'h03, 6'h03, 6'h03, 6'h03, 6'h04,
@@ -67,9 +65,7 @@ module ZXUnCore_Next186lite_512KB
 		.CLK_IN1(CLK_50MHZ), 
 		.CLK_OUT1(clk_28_636),
 		.CLK_OUT2(clk_25),
-		.CLK_OUT3(clk_14_318),
-		.CLK_OUT4(clk_7_169),
-		.CLK_OUT5(clk_4_772)
+		.CLK_OUT3(clk_14_318)
 		
     );
    

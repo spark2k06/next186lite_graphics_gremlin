@@ -277,13 +277,13 @@ module KB_Mouse_8042(
 			end	
 			else if (joy_map_changes[1]) begin
 				OBF <= 1'b1;
-				s_data <= joy_map_aux[1] ? 8'h52 : 8'hd2; // Keypad 0
+				s_data <= joy_map_aux[1] ? 8'h1c : 8'h9c; // Enter
 				joy_map_aux[1] <= joy_map[1];
 				joy_map_changes[1] <= 0;
 			end				
 			else if (joy_map_changes[0]) begin
 				OBF <= 1'b1;
-				s_data <= joy_map_aux[0] ? 8'h53 : 8'hd3; // Keypad .	
+				s_data <= joy_map_aux[0] ? 8'h39 : 8'hb9; // Space
 				joy_map_aux[0] <= joy_map[0];
 				joy_map_changes[0] <= 0;
 			end				
